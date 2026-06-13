@@ -1,0 +1,4 @@
+{
+    # Admin API accessible depuis le réseau Docker uniquement
+    admin 0.0.0.0:2019
+}
