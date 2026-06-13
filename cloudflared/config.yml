@@ -1,0 +1,28 @@
+# cloudflared/config.yml
+#
+# Configuration alternative pour cloudflared (méthode fichier de credentials).
+# L'approche actuelle (docker-compose.yml) utilise la variable CLOUDFLARE_TUNNEL_TOKEN,
+# ce qui est plus simple et recommandé par Cloudflare depuis 2022.
+#
+# Utiliser ce fichier uniquement si vous souhaitez gérer le tunnel manuellement :
+#   1. cloudflared tunnel login
+#   2. cloudflared tunnel create esp32-manager
+#   3. Copier le fichier JSON de credentials dans ce répertoire
+#   4. Remplacer TUNNEL_ID et DOMAIN_NAME ci-dessous
+#   5. Monter ce répertoire dans docker-compose.yml :
+#      volumes:
+#        - ./cloudflared:/etc/cloudflared
+#      command: tunnel --config /etc/cloudflared/config.yml run
+#
+# Référence : https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/
+
+tunnel: TUNNEL_ID
+credentials-file: /etc/cloudflared/TUNNEL_ID.json
+
+ingress:
+  # Tout le trafic wildcard va vers Caddy (qui route ensuite vers le bon équipement)
+  - hostname: "*.DOMAIN_NAME"
+    service: http://caddy:80
+
+  # Règle de fallback obligatoire
+  - service: http_status:404
