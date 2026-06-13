@@ -99,9 +99,9 @@ Tâche asyncio en arrière-plan (`monitor.py`) :
 
 ## Fonctionnalités terminées
 
-- [x] Structure du projet (backend / frontend / caddy / docs)
+- [x] Structure du projet (backend / frontend / caddy / cloudflared / docs / scripts)
 - [x] Modèle de données SQLAlchemy (`Device`)
-- [x] Schémas Pydantic avec validation (slug, IP, port)
+- [x] Schémas Pydantic avec validation (slug, IP, port, slugs réservés)
 - [x] API CRUD complète (`/api/devices/`)
 - [x] Endpoint de rafraîchissement manuel (`/api/devices/{id}/refresh`)
 - [x] Endpoint de santé (`/api/health`)
@@ -109,13 +109,19 @@ Tâche asyncio en arrière-plan (`monitor.py`) :
 - [x] Service Caddy (synchronisation config dynamique via admin API)
 - [x] Service monitor (surveillance périodique en arrière-plan)
 - [x] Frontend : tableau de bord avec cartes équipements
+- [x] Frontend : bouton "Ouvrir" (lien vers URL publique de l'ESP32)
 - [x] Frontend : modal ajout/modification
 - [x] Frontend : indicateurs de statut (vert/orange/rouge)
 - [x] Frontend : auto-refresh toutes les 30 secondes
 - [x] Docker Compose (backend + caddy + cloudflared)
-- [x] Documentation README
+- [x] Scripts shell (install, start, stop, backup, restore, check-health)
+- [x] Tests pytest (schémas, CRUD, config Caddy, monitor)
+- [x] `pytest.ini` + `requirements-dev.txt`
+- [x] `cloudflared/config.yml` (méthode fichier, alternative au token)
+- [x] Documentation README (installation, scripts, tests, backup, dépannage)
 - [x] Documentation PROJECT_CONTEXT.md
 - [x] Documentation par fonctionnalité (docs/features/)
+- [x] Guides de configuration étape par étape (docs/setup/)
 - [x] CHANGELOG.md
 
 ---
@@ -176,3 +182,5 @@ Aucune.
 | 2026-06-13 | Frontend vanilla JS : aucune dépendance de build, maintenabilité maximale                     |
 | 2026-06-13 | cloudflared géré via token d'env (méthode moderne, recommandée par Cloudflare depuis 2022)    |
 | 2026-06-13 | Surveillance HTTP plutôt que ping ICMP : plus représentative de la disponibilité réelle       |
+| 2026-06-13 | Ajout des scripts shell, tests pytest, guides setup, cloudflared/config.yml                   |
+| 2026-06-13 | Renommage `SECRET_KEY` → `APP_SECRET_KEY` dans .env.example pour cohérence avec le cahier    |
