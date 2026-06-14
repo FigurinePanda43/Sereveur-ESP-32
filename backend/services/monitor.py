@@ -46,7 +46,7 @@ async def monitor_loop() -> None:
     while True:
         db = SessionLocal()
         try:
-            devices = db.query(Device).filter(Device.enabled == True).all()
+            devices = db.query(Device).filter(Device.access_mode != "suspended").all()
             if devices:
                 results = await asyncio.gather(
                     *[check_device(db, d) for d in devices],

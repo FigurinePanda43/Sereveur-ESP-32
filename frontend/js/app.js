@@ -3,6 +3,7 @@ const REFRESH_INTERVAL = 30_000;
 
 let devices = [];
 let deleteTarget = null;
+let modeTarget = null;
 let refreshTimer = null;
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -38,7 +39,7 @@ async function apiFetch(url, opts = {}) {
     credentials: "same-origin",
     ...opts,
   });
-  if (res.status === 401) { window.location.reload(); return; }
+  if (res.status === 401) { window.location.href = "/auth/login"; return; }
   if (res.status === 204) return null;
   const data = await res.json();
   if (!res.ok) throw new Error(data.detail ?? `Erreur ${res.status}`);
@@ -55,20 +56,46 @@ function statusLabel(status) {
   return { online: "En ligne", slow: "Lent", offline: "Hors ligne", unknown: "Inconnu" }[status] ?? status;
 }
 
+function modeBadge(d) {
+  const labels = { suspended: "⏸ Suspendu", protected: "🔒 Protégé", public_temporary: "🌐 Public" };
+  const classes = { suspended: "badge-suspended", protected: "badge-protected", public_temporary: "badge-public" };
+  return `<span class="mode-badge ${classes[d.access_mode] || ''}">${labels[d.access_mode] || esc(d.access_mode)}</span>`;
+}
+
+function publicWarning(d) {
+  if (d.access_mode !== "public_temporary" || !d.public_until) return "";
+  const until = new Date(d.public_until).toLocaleString("fr-FR", {
+    day: "2-digit", month: "2-digit", year: "numeric",
+    hour: "2-digit", minute: "2-digit",
+  });
+  return `<div class="public-warning">⚠ Accessible sans authentification jusqu'au ${until}</div>`;
+}
+
+function cardClass(d) {
+  if (d.access_mode === "suspended") return "device-card device-card--suspended";
+  if (d.access_mode === "public_temporary") return "device-card device-card--public";
+  return "device-card";
+}
+
 function renderCard(d) {
   const card = document.createElement("div");
-  card.className = d.enabled ? "device-card" : "device-card device-card--disabled";
+  card.className = cardClass(d);
   card.dataset.id = d.id;
 
-  const sc = d.enabled ? statusClass(d.status) : "unknown";
-  const statusText = d.enabled ? statusLabel(d.status) : "Inactif";
+  const isSuspended = d.access_mode === "suspended";
+  const sc = isSuspended ? "unknown" : statusClass(d.status);
+  const statusText = isSuspended ? "Suspendu" : statusLabel(d.status);
 
   card.innerHTML = `
     <div class="card-header">
-      <span class="card-name">${esc(d.project_name)}</span>
+      <div style="flex:1;min-width:0;">
+        <span class="card-name">${esc(d.project_name)}</span>
+        ${modeBadge(d)}
+      </div>
       <span class="status-dot ${sc}" title="${statusText}"></span>
     </div>
     ${d.description ? `<p class="card-desc">${esc(d.description)}</p>` : ""}
+    ${publicWarning(d)}
     <div class="card-meta">
       <div class="card-meta-row">
         <span class="meta-label">Statut</span>
@@ -93,8 +120,8 @@ function renderCard(d) {
       <a href="${esc(d.public_url)}" target="_blank" rel="noopener">${esc(d.public_url)}</a>
     </div>` : ""}
     <div class="card-actions">
-      <button class="btn btn-ghost btn-toggle" data-id="${d.id}" title="${d.enabled ? "Désactiver la redirection" : "Activer la redirection"}">${d.enabled ? "⏸" : "▶"}</button>
-      <button class="btn btn-ghost btn-refresh" data-id="${d.id}" ${d.enabled ? "" : "disabled"}>↻ Tester</button>
+      <button class="btn btn-ghost btn-mode" data-id="${d.id}">🔧 Mode</button>
+      <button class="btn btn-ghost btn-refresh" data-id="${d.id}" ${isSuspended ? "disabled" : ""}>↻ Tester</button>
       <button class="btn btn-secondary btn-edit" data-id="${d.id}">Modifier</button>
       <button class="btn btn-danger btn-delete" data-id="${d.id}">Supprimer</button>
     </div>
@@ -120,12 +147,12 @@ function renderAll() {
 }
 
 function updateStats() {
-  const active = devices.filter(d => d.enabled);
-  document.getElementById("stat-total").textContent    = devices.length;
-  document.getElementById("stat-online").textContent   = active.filter(d => d.status === "online").length;
-  document.getElementById("stat-slow").textContent     = active.filter(d => d.status === "slow").length;
-  document.getElementById("stat-offline").textContent  = active.filter(d => d.status === "offline").length;
-  document.getElementById("stat-disabled").textContent = devices.filter(d => !d.enabled).length;
+  const active = devices.filter(d => d.access_mode !== "suspended");
+  document.getElementById("stat-total").textContent     = devices.length;
+  document.getElementById("stat-online").textContent    = active.filter(d => d.status === "online").length;
+  document.getElementById("stat-slow").textContent      = active.filter(d => d.status === "slow").length;
+  document.getElementById("stat-offline").textContent   = active.filter(d => d.status === "offline").length;
+  document.getElementById("stat-suspended").textContent = devices.filter(d => d.access_mode === "suspended").length;
 }
 
 // ── Load ──────────────────────────────────────────────────────────────────────
@@ -147,7 +174,7 @@ function startAutoRefresh() {
   refreshTimer = setInterval(loadDevices, REFRESH_INTERVAL);
 }
 
-// ── Modal ─────────────────────────────────────────────────────────────────────
+// ── Modal add/edit ─────────────────────────────────────────────────────────────
 
 const modal         = document.getElementById("modal-backdrop");
 const modalTitle    = document.getElementById("modal-title");
@@ -195,7 +222,7 @@ function closeModal() {
 
 function updateSlugPreview() {
   const slug = fieldSlug.value.trim();
-  slugPreview.textContent = slug ? `→ https://${slug}.votre-domaine.com` : "";
+  slugPreview.textContent = slug ? `→ https://${slug}.iot.votre-domaine.com` : "";
 }
 
 function showFormError(msg) {
@@ -273,6 +300,51 @@ document.getElementById("confirm-ok").addEventListener("click", async () => {
   }
 });
 
+// ── Mode modal ────────────────────────────────────────────────────────────────
+
+function openModeModal(device) {
+  modeTarget = device;
+  document.getElementById("mode-device-name").textContent = device.project_name;
+  document.getElementById("btn-close-public").hidden = device.access_mode !== "public_temporary";
+  document.getElementById("mode-backdrop").hidden = false;
+}
+
+function closeModeModal() {
+  document.getElementById("mode-backdrop").hidden = true;
+  modeTarget = null;
+}
+
+document.getElementById("mode-modal-close").addEventListener("click", closeModeModal);
+document.getElementById("mode-cancel").addEventListener("click", closeModeModal);
+
+document.querySelectorAll(".mode-btn").forEach(btn => {
+  btn.addEventListener("click", async () => {
+    if (!modeTarget) return;
+    const mode = btn.dataset.mode;
+    const duration = btn.dataset.duration || null;
+    const payload = { access_mode: mode };
+    if (duration) payload.duration = duration;
+
+    btn.disabled = true;
+    try {
+      const updated = await apiFetch(`${API}/${modeTarget.id}/access-mode`, {
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
+      devices = devices.map(d => d.id === modeTarget.id ? updated : d);
+      renderAll();
+      updateStats();
+      closeModeModal();
+      const labels = { suspended: "suspendu", protected: "protégé", public_temporary: "public temporaire" };
+      showToast(`${updated.project_name} → ${labels[mode] || mode}`);
+    } catch (err) {
+      showToast(err.message, "error");
+    } finally {
+      btn.disabled = false;
+    }
+  });
+});
+
 // ── Event delegation ──────────────────────────────────────────────────────────
 
 document.getElementById("device-grid").addEventListener("click", async (e) => {
@@ -283,19 +355,8 @@ document.getElementById("device-grid").addEventListener("click", async (e) => {
   const device = devices.find(d => d.id === id);
   if (!device) return;
 
-  if (btn.classList.contains("btn-toggle")) {
-    btn.disabled = true;
-    try {
-      const updated = await apiFetch(`${API}/${id}/toggle`, { method: "POST" });
-      devices = devices.map(d => d.id === id ? updated : d);
-      renderAll();
-      updateStats();
-      showToast(updated.enabled ? "Redirection activée" : "Redirection désactivée");
-    } catch (err) {
-      showToast(err.message, "error");
-    } finally {
-      btn.disabled = false;
-    }
+  if (btn.classList.contains("btn-mode")) {
+    openModeModal(device);
   } else if (btn.classList.contains("btn-edit")) {
     openModal(device);
   } else if (btn.classList.contains("btn-delete")) {
@@ -327,6 +388,9 @@ document.getElementById("btn-cancel").addEventListener("click", closeModal);
 
 modal.addEventListener("click", (e) => { if (e.target === modal) closeModal(); });
 confirmBackdrop.addEventListener("click", (e) => { if (e.target === confirmBackdrop) closeConfirm(); });
+document.getElementById("mode-backdrop").addEventListener("click", (e) => {
+  if (e.target === document.getElementById("mode-backdrop")) closeModeModal();
+});
 
 fieldSlug.addEventListener("input", updateSlugPreview);
 
@@ -334,6 +398,7 @@ document.addEventListener("keydown", (e) => {
   if (e.key === "Escape") {
     if (!modal.hidden) closeModal();
     if (!confirmBackdrop.hidden) closeConfirm();
+    if (!document.getElementById("mode-backdrop").hidden) closeModeModal();
   }
 });
 
