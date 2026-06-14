@@ -23,8 +23,8 @@ def get_domain():
     return os.getenv("DOMAIN", "mondomaine.com")
 
 
-def get_iot_domain():
-    return f"iot.{get_domain()}"
+def get_cookie_domain():
+    return f".{get_domain()}"
 
 
 def verify_password(password: str) -> bool:
@@ -176,7 +176,7 @@ async def auth_middleware(request: Request, call_next):
         response.set_cookie(
             COOKIE_NAME,
             new_token,
-            domain=f".{get_iot_domain()}",
+            domain=get_cookie_domain(),
             max_age=SESSION_MAX_AGE,
             httponly=True,
             secure=True,

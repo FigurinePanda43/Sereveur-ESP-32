@@ -12,8 +12,7 @@ CADDY_ADMIN_URL = os.getenv("CADDY_ADMIN_URL", "http://caddy:2019")
 
 def _build_config(devices: List) -> dict:
     domain = os.getenv("DOMAIN", "mondomaine.com")
-    iot_domain = f"iot.{domain}"
-    admin_domain = f"admin.{iot_domain}"
+    admin_domain = f"iot.{domain}"   # admin at iot.DOMAIN
 
     routes = [
         {
@@ -25,7 +24,7 @@ def _build_config(devices: List) -> dict:
     now = datetime.now(timezone.utc)
 
     for device in devices:
-        device_domain = f"{device.slug}.{iot_domain}"
+        device_domain = f"{device.slug}.{domain}"  # devices at slug.DOMAIN
         mode = device.access_mode or "protected"
 
         # Treat expired public_temporary as protected
@@ -49,7 +48,6 @@ def _build_config(devices: List) -> dict:
                     {
                         "handler": "forward_auth",
                         "uri": "http://backend:8000/auth/check",
-                        # TODO: add header_up if needed for Caddy version compatibility
                     },
                     {
                         "handler": "reverse_proxy",
