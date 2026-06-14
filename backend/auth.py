@@ -151,7 +151,7 @@ def apply_brute_force_rules(db: Session, ip: str, user_agent: str):
 
 
 # Middleware
-_PUBLIC_PATHS = {"/auth/login", "/auth/logout", "/auth/check"}
+_PUBLIC_PATHS = {"/auth/login", "/auth/logout", "/auth/check", "/device-suspended"}
 _PUBLIC_PREFIXES = ("/css/", "/js/", "/favicon")
 
 

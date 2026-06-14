@@ -39,7 +39,8 @@ def _build_caddyfile(devices: List) -> str:
         if mode == "suspended":
             lines += [
                 f"http://{device_domain} {{",
-                "    respond 403",
+                "    rewrite * /device-suspended",
+                "    reverse_proxy backend:8000",
                 "}",
                 "",
             ]
