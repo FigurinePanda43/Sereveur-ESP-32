@@ -110,9 +110,9 @@ def apply_brute_force_rules(db: Session, ip: str, user_agent: str):
 
     rules = [
         # (window_minutes, max_failures, block_minutes)
-        (10, 5, 15),
-        (60, 10, 60),
-        (1440, 20, 1440),
+        (10, 50, 15),
+        (60, 100, 60),
+        (1440, 200, 1440),
     ]
 
     for window_min, max_fails, block_min in rules:
