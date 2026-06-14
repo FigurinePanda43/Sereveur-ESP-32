@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ESP32 Manager</title>
-  <link rel="stylesheet" href="/css/style.css?v=4">
+  <link rel="stylesheet" href="/css/style.css?v=5">
 </head>
 <body>
 
@@ -121,13 +121,15 @@
           <button class="btn btn-secondary mode-btn" data-mode="suspended" style="width:100%;margin-bottom:8px;">⏸ Suspendre</button>
           <button class="btn btn-secondary mode-btn" data-mode="protected" style="width:100%;margin-bottom:16px;">🔒 Protégé (authentification requise)</button>
           <p style="color:var(--text-muted);font-size:12px;margin-bottom:8px;">Accès public temporaire :</p>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">
             <button class="btn btn-ghost mode-btn" data-mode="public_temporary" data-duration="15m">15 min</button>
             <button class="btn btn-ghost mode-btn" data-mode="public_temporary" data-duration="1h">1 heure</button>
             <button class="btn btn-ghost mode-btn" data-mode="public_temporary" data-duration="24h">24 heures</button>
             <button class="btn btn-ghost mode-btn" data-mode="public_temporary" data-duration="48h">48 heures</button>
             <button class="btn btn-ghost mode-btn" data-mode="public_temporary" data-duration="7d" style="grid-column:span 2;">1 semaine</button>
           </div>
+          <p style="color:var(--text-muted);font-size:12px;margin-bottom:8px;">Accès public permanent :</p>
+          <button class="btn mode-btn btn-public-perm" data-mode="public" style="width:100%;margin-bottom:4px;">🌐 Public permanent (sans expiration)</button>
           <button class="btn btn-primary mode-btn" data-mode="protected" id="btn-close-public" hidden style="width:100%;margin-top:12px;">↩ Refermer maintenant</button>
         </div>
       </div>

@@ -47,7 +47,9 @@ def _build_config(devices: List) -> dict:
                 "handle": [
                     {
                         "handler": "forward_auth",
-                        "uri": "http://backend:8000/auth/check",
+                        "upstreams": [{"dial": "backend:8000"}],
+                        "uri": "/auth/check",
+                        "copy_headers": ["Cookie"],
                     },
                     {
                         "handler": "reverse_proxy",
@@ -55,7 +57,7 @@ def _build_config(devices: List) -> dict:
                     },
                 ],
             })
-        elif mode == "public_temporary":
+        elif mode in ("public_temporary", "public"):
             routes.append({
                 "match": [{"host": [device_domain]}],
                 "handle": [{
