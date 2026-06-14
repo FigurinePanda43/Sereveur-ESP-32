@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from datetime import datetime, timezone
+from datetime import datetime
 
 from database import SessionLocal
 from models import AccessLog, Device
@@ -14,7 +14,7 @@ async def expiry_loop():
         await asyncio.sleep(30)
         db = SessionLocal()
         try:
-            now = datetime.now(timezone.utc)
+            now = datetime.utcnow()
             expired = db.query(Device).filter(
                 Device.access_mode == "public_temporary",
                 Device.public_until <= now,

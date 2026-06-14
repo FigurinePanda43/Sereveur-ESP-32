@@ -4,7 +4,7 @@ import hmac
 import logging
 import os
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 
 from fastapi import Request
 from fastapi.responses import JSONResponse, RedirectResponse
@@ -78,7 +78,7 @@ def get_client_ip(request: Request) -> str:
 
 def is_ip_blocked(db: Session, ip: str) -> bool:
     from models import BlockedIP
-    now = datetime.now(timezone.utc)
+    now = datetime.utcnow()
     block = db.query(BlockedIP).filter(BlockedIP.ip_address == ip).first()
     return block is not None and block.blocked_until > now
 
@@ -106,7 +106,7 @@ def record_attempt(db: Session, ip: str, username: str, user_agent: str, success
 def apply_brute_force_rules(db: Session, ip: str, user_agent: str):
     """Check failure counts and block IP if needed. Returns (is_blocked, blocked_until_or_None)."""
     from models import AuthAttempt, BlockedIP, AccessLog
-    now = datetime.now(timezone.utc)
+    now = datetime.utcnow()
 
     rules = [
         # (window_minutes, max_failures, block_minutes)
