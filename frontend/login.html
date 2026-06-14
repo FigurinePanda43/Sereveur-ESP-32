@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Connexion — ESP32 Manager</title>
+  <link rel="stylesheet" href="/css/style.css?v=4">
+  <style>
+    body { display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+    .login-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 40px; width: 100%; max-width: 360px; box-shadow: var(--shadow); }
+    .login-title { font-size: 22px; font-weight: 700; text-align: center; margin-bottom: 8px; }
+    .login-subtitle { color: var(--text-muted); font-size: 13px; text-align: center; margin-bottom: 28px; }
+    .login-error { background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.3); border-radius: 6px; color: var(--offline); font-size: 13px; padding: 10px 14px; margin-bottom: 16px; text-align: center; }
+    .login-form .form-group { margin-bottom: 16px; }
+    .login-form .btn { width: 100%; padding: 10px; font-size: 15px; margin-top: 8px; }
+  </style>
+</head>
+<body>
+  <div class="login-card">
+    <div style="text-align:center;font-size:36px;margin-bottom:12px;">⚡</div>
+    <div class="login-title">ESP32 Manager</div>
+    <div class="login-subtitle">Accès administration</div>
+    <div class="login-error" id="login-error" hidden>Identifiant ou mot de passe incorrect.</div>
+    <form class="login-form" method="POST" action="/auth/login">
+      <input type="hidden" name="next" id="next-field" value="/">
+      <div class="form-group">
+        <label for="username">Identifiant</label>
+        <input type="text" id="username" name="username" autocomplete="username" required autofocus>
+      </div>
+      <div class="form-group">
+        <label for="password">Mot de passe</label>
+        <input type="password" id="password" name="password" autocomplete="current-password" required>
+      </div>
+      <button type="submit" class="btn btn-primary">Se connecter</button>
+    </form>
+  </div>
+  <script>
+    const p = new URLSearchParams(location.search);
+    if (p.get("error")) document.getElementById("login-error").hidden = false;
+    if (p.get("next")) document.getElementById("next-field").value = p.get("next");
+  </script>
+</body>
+</html>

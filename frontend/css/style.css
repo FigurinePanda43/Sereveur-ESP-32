@@ -99,7 +99,7 @@ body {
 .stat-online { color: var(--online); }
 .stat-slow { color: var(--slow); }
 .stat-offline { color: var(--offline); }
-.stat-disabled { color: var(--unknown); }
+.stat-suspended { color: var(--unknown); }
 
 /* Device grid */
 .device-grid {
@@ -122,10 +122,11 @@ body {
 
 .device-card:hover { border-color: var(--primary); }
 
-.device-card--disabled { opacity: 0.5; border-color: var(--unknown) !important; }
-.device-card--disabled:hover { border-color: var(--unknown) !important; }
+.device-card--suspended { opacity: 0.55; border-color: var(--unknown) !important; }
+.device-card--suspended:hover { border-color: var(--unknown) !important; }
 
-.btn-toggle { flex: 0 0 auto; padding: 8px 12px; font-size: 15px; }
+.device-card--public { border-color: var(--slow); }
+.device-card--public:hover { border-color: var(--slow); }
 
 .card-header {
   display: flex;
@@ -219,6 +220,7 @@ body {
   cursor: pointer;
   transition: background 0.15s, opacity 0.15s;
   white-space: nowrap;
+  text-decoration: none;
 }
 
 .btn:disabled { opacity: 0.5; cursor: not-allowed; }
@@ -320,7 +322,8 @@ label { font-size: 13px; font-weight: 500; color: var(--text); }
 .required { color: var(--offline); }
 
 input[type="text"],
-input[type="number"] {
+input[type="number"],
+input[type="password"] {
   background: var(--bg);
   border: 1px solid var(--border);
   border-radius: 6px;
@@ -365,6 +368,29 @@ input.invalid { border-color: var(--offline); }
 
 .toast.success { border-color: var(--online); color: var(--online); }
 .toast.error   { border-color: var(--offline); color: var(--offline); }
+
+/* Mode badges */
+.mode-badge {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 4px;
+  margin-top: 4px;
+}
+.badge-suspended { background: rgba(107,114,128,0.2); color: var(--unknown); }
+.badge-protected  { background: rgba(79,142,247,0.15); color: var(--primary); }
+.badge-public     { background: rgba(245,158,11,0.15); color: var(--slow); }
+
+/* Public access warning */
+.public-warning {
+  background: rgba(245,158,11,0.1);
+  border: 1px solid rgba(245,158,11,0.3);
+  border-radius: 6px;
+  color: var(--slow);
+  font-size: 12px;
+  padding: 8px 12px;
+}
 
 /* Responsive */
 @media (max-width: 600px) {
