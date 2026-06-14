@@ -99,6 +99,7 @@ body {
 .stat-online { color: var(--online); }
 .stat-slow { color: var(--slow); }
 .stat-offline { color: var(--offline); }
+.stat-disabled { color: var(--unknown); }
 
 /* Device grid */
 .device-grid {
@@ -120,6 +121,11 @@ body {
 }
 
 .device-card:hover { border-color: var(--primary); }
+
+.device-card--disabled { opacity: 0.5; border-color: var(--unknown) !important; }
+.device-card--disabled:hover { border-color: var(--unknown) !important; }
+
+.btn-toggle { flex: 0 0 auto; padding: 8px 12px; font-size: 15px; }
 
 .card-header {
   display: flex;

@@ -11,6 +11,9 @@ services:
       - CLOUDFLARE_TUNNEL_ID=${CLOUDFLARE_TUNNEL_ID}
       - DOMAIN=${DOMAIN:-mondomaine.com}
       - CADDY_ADMIN_URL=http://caddy:2019
+      - APP_SECRET_KEY=${APP_SECRET_KEY}
+      - ADMIN_USER=${ADMIN_USER:-admin}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-changeme}
     volumes:
       - db_data:/data
       - ./frontend:/app/frontend:ro

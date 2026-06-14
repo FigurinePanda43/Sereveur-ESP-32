@@ -85,3 +85,17 @@ async def refresh_device(device_id: int, db: Session = Depends(get_db)):
     await monitor.check_device(db, device)
     db.refresh(device)
     return device
+
+
+@router.post("/{device_id}/toggle", response_model=DeviceResponse)
+async def toggle_device(device_id: int, db: Session = Depends(get_db)):
+    device = db.query(Device).filter(Device.id == device_id).first()
+    if not device:
+        raise HTTPException(status_code=404, detail="Équipement introuvable")
+
+    device.enabled = not device.enabled
+    db.commit()
+    db.refresh(device)
+
+    await caddy.sync_caddy(db.query(Device).all())
+    return device
