@@ -4,7 +4,10 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
+from sqlalchemy import text
+from starlette.middleware.base import BaseHTTPMiddleware
 
+from auth import auth_middleware
 from database import Base, SessionLocal, engine
 from models import Device
 from routers.devices import router as devices_router
@@ -37,6 +40,14 @@ async def _wait_for_caddy(retries: int = 10, delay: float = 2.0) -> bool:
 async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=engine)
 
+    # Migration : ajout colonne enabled si absente
+    with engine.connect() as conn:
+        try:
+            conn.execute(text("ALTER TABLE devices ADD COLUMN enabled BOOLEAN NOT NULL DEFAULT 1"))
+            conn.commit()
+        except Exception:
+            pass
+
     await _wait_for_caddy()
 
     db = SessionLocal()
@@ -58,6 +69,8 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="ESP32 Manager", version="1.0.0", lifespan=lifespan)
+
+app.add_middleware(BaseHTTPMiddleware, dispatch=auth_middleware)
 
 app.include_router(devices_router)
 

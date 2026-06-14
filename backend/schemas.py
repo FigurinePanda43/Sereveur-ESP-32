@@ -61,6 +61,7 @@ class DeviceResponse(BaseModel):
     local_ip: str
     local_port: int
     description: str
+    enabled: bool
     status: str
     created_at: datetime
     last_seen: Optional[datetime]

@@ -35,8 +35,10 @@ function showToast(msg, type = "success") {
 async function apiFetch(url, opts = {}) {
   const res = await fetch(url, {
     headers: { "Content-Type": "application/json" },
+    credentials: "same-origin",
     ...opts,
   });
+  if (res.status === 401) { window.location.reload(); return; }
   if (res.status === 204) return null;
   const data = await res.json();
   if (!res.ok) throw new Error(data.detail ?? `Erreur ${res.status}`);
@@ -55,21 +57,22 @@ function statusLabel(status) {
 
 function renderCard(d) {
   const card = document.createElement("div");
-  card.className = "device-card";
+  card.className = d.enabled ? "device-card" : "device-card device-card--disabled";
   card.dataset.id = d.id;
 
-  const sc = statusClass(d.status);
+  const sc = d.enabled ? statusClass(d.status) : "unknown";
+  const statusText = d.enabled ? statusLabel(d.status) : "Inactif";
 
   card.innerHTML = `
     <div class="card-header">
       <span class="card-name">${esc(d.project_name)}</span>
-      <span class="status-dot ${sc}" title="${statusLabel(d.status)}"></span>
+      <span class="status-dot ${sc}" title="${statusText}"></span>
     </div>
     ${d.description ? `<p class="card-desc">${esc(d.description)}</p>` : ""}
     <div class="card-meta">
       <div class="card-meta-row">
         <span class="meta-label">Statut</span>
-        <span class="meta-value">${statusLabel(d.status)}</span>
+        <span class="meta-value">${statusText}</span>
       </div>
       <div class="card-meta-row">
         <span class="meta-label">IP locale</span>
@@ -90,7 +93,8 @@ function renderCard(d) {
       <a href="${esc(d.public_url)}" target="_blank" rel="noopener">${esc(d.public_url)}</a>
     </div>` : ""}
     <div class="card-actions">
-      <button class="btn btn-ghost btn-refresh" data-id="${d.id}">↻ Tester</button>
+      <button class="btn btn-ghost btn-toggle" data-id="${d.id}" title="${d.enabled ? "Désactiver la redirection" : "Activer la redirection"}">${d.enabled ? "⏸" : "▶"}</button>
+      <button class="btn btn-ghost btn-refresh" data-id="${d.id}" ${d.enabled ? "" : "disabled"}>↻ Tester</button>
       <button class="btn btn-secondary btn-edit" data-id="${d.id}">Modifier</button>
       <button class="btn btn-danger btn-delete" data-id="${d.id}">Supprimer</button>
     </div>
@@ -116,10 +120,12 @@ function renderAll() {
 }
 
 function updateStats() {
-  document.getElementById("stat-total").textContent   = devices.length;
-  document.getElementById("stat-online").textContent  = devices.filter(d => d.status === "online").length;
-  document.getElementById("stat-slow").textContent    = devices.filter(d => d.status === "slow").length;
-  document.getElementById("stat-offline").textContent = devices.filter(d => d.status === "offline").length;
+  const active = devices.filter(d => d.enabled);
+  document.getElementById("stat-total").textContent    = devices.length;
+  document.getElementById("stat-online").textContent   = active.filter(d => d.status === "online").length;
+  document.getElementById("stat-slow").textContent     = active.filter(d => d.status === "slow").length;
+  document.getElementById("stat-offline").textContent  = active.filter(d => d.status === "offline").length;
+  document.getElementById("stat-disabled").textContent = devices.filter(d => !d.enabled).length;
 }
 
 // ── Load ──────────────────────────────────────────────────────────────────────
@@ -277,7 +283,20 @@ document.getElementById("device-grid").addEventListener("click", async (e) => {
   const device = devices.find(d => d.id === id);
   if (!device) return;
 
-  if (btn.classList.contains("btn-edit")) {
+  if (btn.classList.contains("btn-toggle")) {
+    btn.disabled = true;
+    try {
+      const updated = await apiFetch(`${API}/${id}/toggle`, { method: "POST" });
+      devices = devices.map(d => d.id === id ? updated : d);
+      renderAll();
+      updateStats();
+      showToast(updated.enabled ? "Redirection activée" : "Redirection désactivée");
+    } catch (err) {
+      showToast(err.message, "error");
+    } finally {
+      btn.disabled = false;
+    }
+  } else if (btn.classList.contains("btn-edit")) {
     openModal(device);
   } else if (btn.classList.contains("btn-delete")) {
     openConfirm(device);

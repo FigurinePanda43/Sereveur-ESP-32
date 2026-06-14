@@ -18,6 +18,8 @@ def _build_config(devices: List) -> dict:
         }
     ]
     for device in devices:
+        if not device.enabled:
+            continue
         routes.append({
             "match": [{"host": [f"{device.slug}.{domain}"]}],
             "handle": [{"handler": "reverse_proxy", "upstreams": [{"dial": f"{device.local_ip}:{device.local_port}"}]}],
