@@ -8,6 +8,8 @@ from pydantic import BaseModel, Field, field_validator
 RESERVED_SLUGS = {"iot", "api", "www", "mail", "ftp", "admin", "root", "docs"}
 SLUG_PATTERN = re.compile(r"^[a-z0-9-]+$")
 
+VALID_DURATIONS = {"15m", "1h", "24h", "48h", "7d"}
+
 
 class DeviceCreate(BaseModel):
     project_name: str = Field(..., min_length=1, max_length=100)
@@ -61,9 +63,40 @@ class DeviceResponse(BaseModel):
     local_ip: str
     local_port: int
     description: str
-    enabled: bool
+    access_mode: str
+    public_until: Optional[datetime]
+    last_access_mode_change: Optional[datetime]
     status: str
     created_at: datetime
     last_seen: Optional[datetime]
 
     model_config = {"from_attributes": True}
+
+
+class AccessModeUpdate(BaseModel):
+    access_mode: str
+    duration: Optional[str] = None
+
+    @field_validator("access_mode")
+    @classmethod
+    def validate_access_mode(cls, v: str) -> str:
+        valid = {"suspended", "protected", "public_temporary"}
+        if v not in valid:
+            raise ValueError(f"Mode d'accès invalide. Valeurs autorisées : {', '.join(valid)}")
+        return v
+
+    @field_validator("duration")
+    @classmethod
+    def validate_duration(cls, v: Optional[str], info) -> Optional[str]:
+        if v is not None and v not in VALID_DURATIONS:
+            raise ValueError(f"Durée invalide. Valeurs autorisées : {', '.join(VALID_DURATIONS)}")
+        return v
+
+    def model_post_init(self, __context) -> None:
+        if self.access_mode == "public_temporary" and not self.duration:
+            raise ValueError("La durée est requise pour le mode public_temporary")
+
+
+class LoginRequest(BaseModel):
+    username: str
+    password: str

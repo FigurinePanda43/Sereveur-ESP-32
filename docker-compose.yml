@@ -13,7 +13,8 @@ services:
       - CADDY_ADMIN_URL=http://caddy:2019
       - APP_SECRET_KEY=${APP_SECRET_KEY}
       - ADMIN_USER=${ADMIN_USER:-admin}
-      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-changeme}
+      - ADMIN_PASSWORD_HASH=${ADMIN_PASSWORD_HASH}
+      - SESSION_MAX_AGE_SECONDS=${SESSION_MAX_AGE_SECONDS:-2592000}
     volumes:
       - db_data:/data
       - ./frontend:/app/frontend:ro
