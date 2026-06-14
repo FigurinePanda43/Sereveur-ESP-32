@@ -1,5 +1,5 @@
 import os
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -107,7 +107,7 @@ async def set_access_mode(device_id: int, payload: AccessModeUpdate, db: Session
     if not device:
         raise HTTPException(status_code=404, detail="Équipement introuvable")
 
-    now = datetime.now(timezone.utc)
+    now = datetime.utcnow()
     old_mode = device.access_mode
 
     device.access_mode = payload.access_mode

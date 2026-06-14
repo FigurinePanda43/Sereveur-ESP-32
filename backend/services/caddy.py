@@ -1,6 +1,6 @@
 import logging
 import os
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import List
 
 import httpx
@@ -21,7 +21,7 @@ def _build_config(devices: List) -> dict:
         }
     ]
 
-    now = datetime.now(timezone.utc)
+    now = datetime.utcnow()
 
     for device in devices:
         device_domain = f"{device.slug}.{domain}"  # devices at slug.DOMAIN
