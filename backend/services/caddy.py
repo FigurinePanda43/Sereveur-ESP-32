@@ -14,7 +14,7 @@ def _build_config(devices: List) -> dict:
     routes = [
         {
             "match": [{"host": [f"iot.{domain}"]}],
-            "handle": [{"handler": "reverse_proxy", "upstreams": [{"dial": "localhost:8000"}]}],
+            "handle": [{"handler": "reverse_proxy", "upstreams": [{"dial": "backend:8000"}]}],
         }
     ]
     for device in devices:
