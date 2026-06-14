@@ -422,6 +422,23 @@ input.invalid { border-color: var(--offline); }
 }
 .btn-public-perm:hover { background: rgba(239,68,68,0.25); }
 
+/* Update output terminal */
+.update-output {
+  background: #0a0c12;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: #a8d8a8;
+  font-family: "Courier New", monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  max-height: 400px;
+  overflow-y: auto;
+  padding: 12px;
+  white-space: pre-wrap;
+  word-break: break-all;
+  margin-bottom: 0;
+}
+
 /* Responsive */
 @media (max-width: 600px) {
   .stats-bar { flex-wrap: wrap; }
