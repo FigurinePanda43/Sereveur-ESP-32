@@ -12,6 +12,7 @@ class Device(Base):
     public_url = Column(String)
     local_ip = Column(String, nullable=False)
     local_port = Column(Integer, nullable=False, default=80)
+    local_protocol = Column(String, nullable=False, default="http")
     description = Column(String, default="")
     enabled = Column(Boolean, nullable=False, default=True)  # kept for migration compatibility
     status = Column(String, default="unknown")
