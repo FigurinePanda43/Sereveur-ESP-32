@@ -33,14 +33,13 @@ async def create_device(payload: DeviceCreate, db: Session = Depends(get_db)):
     if db.query(Device).filter(Device.slug == payload.slug).first():
         raise HTTPException(status_code=409, detail="Ce slug est déjà utilisé")
 
-    iot_domain = f"iot.{DOMAIN}"
     device = Device(
         project_name=payload.project_name,
         slug=payload.slug,
         local_ip=payload.local_ip,
         local_port=payload.local_port,
         description=payload.description,
-        public_url=f"https://{payload.slug}.{iot_domain}",
+        public_url=f"https://{payload.slug}.{DOMAIN}",
         status="unknown",
         access_mode="protected",
     )

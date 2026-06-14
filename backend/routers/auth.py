@@ -10,7 +10,7 @@ from auth import (
     SESSION_MAX_AGE,
     apply_brute_force_rules,
     get_client_ip,
-    get_iot_domain,
+    get_cookie_domain,
     is_ip_blocked,
     make_token,
     record_attempt,
@@ -49,7 +49,7 @@ async def login(
         response.set_cookie(
             COOKIE_NAME,
             make_token(),
-            domain=f".{get_iot_domain()}",
+            domain=get_cookie_domain(),
             max_age=SESSION_MAX_AGE,
             httponly=True,
             secure=True,
@@ -71,7 +71,7 @@ async def logout(request: Request, db: Session = Depends(get_db)):
     db.add(log)
     db.commit()
     response = RedirectResponse("/auth/login", status_code=302)
-    response.delete_cookie(COOKIE_NAME, domain=f".{get_iot_domain()}", path="/")
+    response.delete_cookie(COOKIE_NAME, domain=get_cookie_domain(), path="/")
     return response
 
 
@@ -87,7 +87,7 @@ async def auth_check(request: Request):
     original_uri = request.headers.get("x-forwarded-uri", "/")
     scheme = "https"
     domain = os.getenv("DOMAIN", "mondomaine.com")
-    admin_domain = f"admin.iot.{domain}"
+    admin_domain = f"iot.{domain}"
     next_url = f"{scheme}://{original_host}{original_uri}" if original_host else "/"
     return RedirectResponse(
         f"{scheme}://{admin_domain}/auth/login?next={next_url}",

@@ -29,7 +29,7 @@ async def create_dns_record(slug: str) -> bool:
     zone_id = os.getenv("CLOUDFLARE_ZONE_ID")
     tunnel_id = os.getenv("CLOUDFLARE_TUNNEL_ID")
     domain = os.getenv("DOMAIN", "mondomaine.com")
-    name = f"{slug}.iot.{domain}"
+    name = f"{slug}.{domain}"
     content = f"{tunnel_id}.cfargotunnel.com"
 
     async with httpx.AsyncClient() as client:
@@ -55,7 +55,7 @@ async def delete_dns_record(slug: str) -> bool:
 
     zone_id = os.getenv("CLOUDFLARE_ZONE_ID")
     domain = os.getenv("DOMAIN", "mondomaine.com")
-    name = f"{slug}.iot.{domain}"
+    name = f"{slug}.{domain}"
 
     async with httpx.AsyncClient() as client:
         search = await client.get(
