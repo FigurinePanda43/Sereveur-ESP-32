@@ -10,6 +10,20 @@ logger = logging.getLogger(__name__)
 CADDY_ADMIN_URL = os.getenv("CADDY_ADMIN_URL", "http://caddy:2019")
 
 
+def _proxy_block(device) -> list:
+    proto = getattr(device, "local_protocol", "http") or "http"
+    dial = f"{device.local_ip}:{device.local_port}"
+    if proto == "https":
+        return [
+            f"    reverse_proxy https://{dial} {{",
+            "        transport http {",
+            "            tls_insecure_skip_verify",
+            "        }",
+            "    }",
+        ]
+    return [f"    reverse_proxy {dial}"]
+
+
 def _build_caddyfile(devices: List) -> str:
     domain = os.getenv("DOMAIN", "mondomaine.com")
     admin_domain = f"iot.{domain}"
@@ -49,16 +63,15 @@ def _build_caddyfile(devices: List) -> str:
                 f"http://{device_domain} {{",
                 "    forward_auth backend:8000 {",
                 "        uri /auth/check",
-                "        copy_headers Cookie",
                 "    }",
-                f"    reverse_proxy {device.local_ip}:{device.local_port}",
+                *_proxy_block(device),
                 "}",
                 "",
             ]
         elif mode in ("public_temporary", "public"):
             lines += [
                 f"http://{device_domain} {{",
-                f"    reverse_proxy {device.local_ip}:{device.local_port}",
+                *_proxy_block(device),
                 "}",
                 "",
             ]

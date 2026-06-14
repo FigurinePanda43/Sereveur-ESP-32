@@ -65,6 +65,7 @@ async def lifespan(app: FastAPI):
             "ALTER TABLE devices ADD COLUMN access_mode TEXT NOT NULL DEFAULT 'protected'",
             "ALTER TABLE devices ADD COLUMN public_until DATETIME NULL",
             "ALTER TABLE devices ADD COLUMN last_access_mode_change DATETIME NULL",
+            "ALTER TABLE devices ADD COLUMN local_protocol TEXT NOT NULL DEFAULT 'http'",
         ]:
             try:
                 conn.execute(text(sql))

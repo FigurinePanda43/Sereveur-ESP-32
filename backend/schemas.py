@@ -16,6 +16,7 @@ class DeviceCreate(BaseModel):
     slug: str = Field(..., min_length=1, max_length=63)
     local_ip: str
     local_port: int = Field(80, ge=1, le=65535)
+    local_protocol: str = Field("http", pattern="^(http|https)$")
     description: str = Field("", max_length=500)
 
     @field_validator("slug")
@@ -41,6 +42,7 @@ class DeviceUpdate(BaseModel):
     project_name: Optional[str] = Field(None, min_length=1, max_length=100)
     local_ip: Optional[str] = None
     local_port: Optional[int] = Field(None, ge=1, le=65535)
+    local_protocol: Optional[str] = Field(None, pattern="^(http|https)$")
     description: Optional[str] = Field(None, max_length=500)
 
     @field_validator("local_ip")
@@ -62,6 +64,7 @@ class DeviceResponse(BaseModel):
     public_url: Optional[str]
     local_ip: str
     local_port: int
+    local_protocol: str
     description: str
     access_mode: str
     public_until: Optional[datetime]

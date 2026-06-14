@@ -189,6 +189,7 @@ const fieldSlug     = document.getElementById("field-slug");
 const fieldIp       = document.getElementById("field-ip");
 const fieldPort     = document.getElementById("field-port");
 const fieldDesc     = document.getElementById("field-desc");
+const fieldHttps    = document.getElementById("field-https");
 const formError     = document.getElementById("form-error");
 const slugPreview   = document.getElementById("slug-preview");
 const btnSubmit     = document.getElementById("btn-submit");
@@ -206,6 +207,7 @@ function openModal(device = null) {
     fieldSlug.disabled = true;
     fieldIp.value    = device.local_ip;
     fieldPort.value  = device.local_port;
+    fieldHttps.checked = device.local_protocol === "https";
     fieldDesc.value  = device.description;
     updateSlugPreview();
   } else {
@@ -213,6 +215,7 @@ function openModal(device = null) {
     fieldId.value = "";
     fieldSlug.disabled = false;
     fieldPort.value = "80";
+    fieldHttps.checked = false;
   }
 
   modal.hidden = false;
@@ -245,10 +248,11 @@ form.addEventListener("submit", async (e) => {
   const isEdit = Boolean(id);
 
   const payload = {
-    project_name: fieldName.value.trim(),
-    local_ip:     fieldIp.value.trim(),
-    local_port:   parseInt(fieldPort.value, 10),
-    description:  fieldDesc.value.trim(),
+    project_name:   fieldName.value.trim(),
+    local_ip:       fieldIp.value.trim(),
+    local_port:     parseInt(fieldPort.value, 10),
+    local_protocol: fieldHttps.checked ? "https" : "http",
+    description:    fieldDesc.value.trim(),
   };
 
   if (!isEdit) {
