@@ -57,12 +57,15 @@ function statusLabel(status) {
 }
 
 function modeBadge(d) {
-  const labels = { suspended: "⏸ Suspendu", protected: "🔒 Protégé", public_temporary: "🌐 Public" };
-  const classes = { suspended: "badge-suspended", protected: "badge-protected", public_temporary: "badge-public" };
+  const labels = { suspended: "⏸ Suspendu", protected: "🔒 Protégé", public_temporary: "🌐 Public temporaire", public: "🌐 Public permanent" };
+  const classes = { suspended: "badge-suspended", protected: "badge-protected", public_temporary: "badge-public", public: "badge-public-perm" };
   return `<span class="mode-badge ${classes[d.access_mode] || ''}">${labels[d.access_mode] || esc(d.access_mode)}</span>`;
 }
 
 function publicWarning(d) {
+  if (d.access_mode === "public") {
+    return `<div class="public-warning public-warning--perm">⚠ Accessible sans authentification (permanent)</div>`;
+  }
   if (d.access_mode !== "public_temporary" || !d.public_until) return "";
   const until = new Date(d.public_until).toLocaleString("fr-FR", {
     day: "2-digit", month: "2-digit", year: "numeric",
@@ -74,6 +77,7 @@ function publicWarning(d) {
 function cardClass(d) {
   if (d.access_mode === "suspended") return "device-card device-card--suspended";
   if (d.access_mode === "public_temporary") return "device-card device-card--public";
+  if (d.access_mode === "public") return "device-card device-card--public-perm";
   return "device-card";
 }
 
@@ -305,7 +309,7 @@ document.getElementById("confirm-ok").addEventListener("click", async () => {
 function openModeModal(device) {
   modeTarget = device;
   document.getElementById("mode-device-name").textContent = device.project_name;
-  document.getElementById("btn-close-public").hidden = device.access_mode !== "public_temporary";
+  document.getElementById("btn-close-public").hidden = !["public_temporary", "public"].includes(device.access_mode);
   document.getElementById("mode-backdrop").hidden = false;
 }
 
@@ -335,7 +339,7 @@ document.querySelectorAll(".mode-btn").forEach(btn => {
       renderAll();
       updateStats();
       closeModeModal();
-      const labels = { suspended: "suspendu", protected: "protégé", public_temporary: "public temporaire" };
+      const labels = { suspended: "suspendu", protected: "protégé", public_temporary: "public temporaire", public: "public permanent" };
       showToast(`${updated.project_name} → ${labels[mode] || mode}`);
     } catch (err) {
       showToast(err.message, "error");

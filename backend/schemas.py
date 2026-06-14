@@ -80,7 +80,7 @@ class AccessModeUpdate(BaseModel):
     @field_validator("access_mode")
     @classmethod
     def validate_access_mode(cls, v: str) -> str:
-        valid = {"suspended", "protected", "public_temporary"}
+        valid = {"suspended", "protected", "public_temporary", "public"}
         if v not in valid:
             raise ValueError(f"Mode d'accès invalide. Valeurs autorisées : {', '.join(valid)}")
         return v
@@ -95,6 +95,8 @@ class AccessModeUpdate(BaseModel):
     def model_post_init(self, __context) -> None:
         if self.access_mode == "public_temporary" and not self.duration:
             raise ValueError("La durée est requise pour le mode public_temporary")
+        if self.access_mode == "public" and self.duration:
+            raise ValueError("Le mode public permanent n'accepte pas de durée")
 
 
 class LoginRequest(BaseModel):

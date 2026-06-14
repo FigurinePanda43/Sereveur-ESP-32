@@ -197,14 +197,13 @@ body {
 .card-url a:hover { text-decoration: underline; }
 
 .card-actions {
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   gap: 8px;
   margin-top: auto;
   padding-top: 4px;
   border-top: 1px solid var(--border);
 }
-
-.card-actions button { flex: 1; }
 
 /* Buttons */
 .btn {
@@ -378,9 +377,10 @@ input.invalid { border-color: var(--offline); }
   border-radius: 4px;
   margin-top: 4px;
 }
-.badge-suspended { background: rgba(107,114,128,0.2); color: var(--unknown); }
-.badge-protected  { background: rgba(79,142,247,0.15); color: var(--primary); }
-.badge-public     { background: rgba(245,158,11,0.15); color: var(--slow); }
+.badge-suspended   { background: rgba(107,114,128,0.2); color: var(--unknown); }
+.badge-protected   { background: rgba(79,142,247,0.15); color: var(--primary); }
+.badge-public      { background: rgba(245,158,11,0.15); color: var(--slow); }
+.badge-public-perm { background: rgba(239,68,68,0.15);  color: var(--danger); }
 
 /* Public access warning */
 .public-warning {
@@ -391,6 +391,21 @@ input.invalid { border-color: var(--offline); }
   font-size: 12px;
   padding: 8px 12px;
 }
+.public-warning--perm {
+  background: rgba(239,68,68,0.1);
+  border-color: rgba(239,68,68,0.3);
+  color: var(--danger);
+}
+
+.device-card--public-perm { border-color: var(--danger); }
+.device-card--public-perm:hover { border-color: var(--danger); }
+
+.btn-public-perm {
+  background: rgba(239,68,68,0.15);
+  color: var(--danger);
+  border: 1px solid rgba(239,68,68,0.3);
+}
+.btn-public-perm:hover { background: rgba(239,68,68,0.25); }
 
 /* Responsive */
 @media (max-width: 600px) {
