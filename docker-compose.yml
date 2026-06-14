@@ -4,17 +4,11 @@ services:
       context: .
       dockerfile: backend/Dockerfile
     container_name: esp32-backend
+    env_file:
+      - .env
     environment:
       - DATABASE_URL=sqlite:////data/devices.db
-      - CLOUDFLARE_API_TOKEN=${CLOUDFLARE_API_TOKEN}
-      - CLOUDFLARE_ZONE_ID=${CLOUDFLARE_ZONE_ID}
-      - CLOUDFLARE_TUNNEL_ID=${CLOUDFLARE_TUNNEL_ID}
-      - DOMAIN=${DOMAIN:-mondomaine.com}
       - CADDY_ADMIN_URL=http://caddy:2019
-      - APP_SECRET_KEY=${APP_SECRET_KEY}
-      - ADMIN_USER=${ADMIN_USER:-admin}
-      - ADMIN_PASSWORD_HASH=${ADMIN_PASSWORD_HASH}
-      - SESSION_MAX_AGE_SECONDS=${SESSION_MAX_AGE_SECONDS:-2592000}
     volumes:
       - db_data:/data
       - ./frontend:/app/frontend:ro
