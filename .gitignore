@@ -1,0 +1,15 @@
+# Secrets — ne jamais commiter
+.env
+
+# Données locales
+data/
+backups/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
+# macOS
+.DS_Store
