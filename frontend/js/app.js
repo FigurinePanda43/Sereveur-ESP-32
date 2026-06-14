@@ -410,6 +410,44 @@ document.addEventListener("keydown", (e) => {
   }
 });
 
+// ── Update modal ──────────────────────────────────────────────────────────────
+
+const updateBackdrop = document.getElementById("update-backdrop");
+const updateOutput   = document.getElementById("update-output");
+const updateCloseBtn = document.getElementById("update-close-btn");
+
+document.getElementById("btn-update").addEventListener("click", async () => {
+  updateOutput.textContent = "";
+  updateCloseBtn.disabled = true;
+  updateBackdrop.hidden = false;
+
+  try {
+    const res = await fetch("/api/system/update", {
+      method: "POST",
+      credentials: "same-origin",
+    });
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      updateOutput.textContent += decoder.decode(value, { stream: true });
+      updateOutput.scrollTop = updateOutput.scrollHeight;
+    }
+  } catch (e) {
+    updateOutput.textContent += `\n[Connexion interrompue — le serveur redémarre probablement]`;
+  }
+
+  updateCloseBtn.disabled = false;
+});
+
+document.getElementById("update-modal-close").addEventListener("click", () => {
+  if (!updateCloseBtn.disabled) updateBackdrop.hidden = true;
+});
+updateCloseBtn.addEventListener("click", () => { updateBackdrop.hidden = true; });
+
 // ── Init ──────────────────────────────────────────────────────────────────────
 
 loadDevices();

@@ -14,6 +14,7 @@ from database import Base, SessionLocal, engine
 from models import Device
 from routers.auth import router as auth_router
 from routers.devices import router as devices_router
+from routers.system import router as system_router
 from services import caddy, monitor
 from services.access_expiry import expiry_loop
 
@@ -101,6 +102,7 @@ app.add_middleware(BaseHTTPMiddleware, dispatch=auth_middleware)
 
 app.include_router(auth_router)
 app.include_router(devices_router)
+app.include_router(system_router)
 
 
 @app.get("/api/health")

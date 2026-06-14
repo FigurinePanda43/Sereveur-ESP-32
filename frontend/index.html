@@ -16,6 +16,7 @@
       </div>
       <div style="display:flex;align-items:center;gap:8px;">
         <button class="btn btn-primary" id="btn-add">+ Ajouter un équipement</button>
+        <button class="btn btn-ghost" id="btn-update" title="Mettre à jour depuis GitHub">⬆ Mettre à jour</button>
         <a href="/auth/logout" class="btn btn-ghost" style="margin-left:8px;">Déconnexion</a>
       </div>
     </div>
@@ -141,6 +142,22 @@
       </div>
       <div class="modal-footer" style="justify-content:flex-start;">
         <button type="button" class="btn btn-secondary" id="mode-cancel">Annuler</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal mise à jour -->
+  <div class="modal-backdrop" id="update-backdrop" hidden>
+    <div class="modal" role="dialog" aria-modal="true" style="max-width:600px;">
+      <div class="modal-header">
+        <h2 class="modal-title">Mise à jour du serveur</h2>
+        <button class="modal-close" id="update-modal-close">&times;</button>
+      </div>
+      <div style="padding:16px 24px 0;">
+        <pre id="update-output" class="update-output">En attente…</pre>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" id="update-close-btn" disabled>Fermer</button>
       </div>
     </div>
   </div>

@@ -12,6 +12,8 @@ services:
     volumes:
       - db_data:/data
       - ./frontend:/app/frontend:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /root/Sereveur-ESP-32:/host-project
     depends_on:
       - caddy
     restart: unless-stopped
