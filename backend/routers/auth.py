@@ -75,6 +75,37 @@ async def logout(request: Request, db: Session = Depends(get_db)):
     return response
 
 
+@router.get("/device-suspended", include_in_schema=False)
+async def device_suspended():
+    html = """<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Service suspendu</title>
+  <style>
+    :root { --bg:#0f1117; --surface:#1a1d27; --border:#2e3250; --text:#e2e8f0; --muted:#8892a4; --unknown:#6b7280; }
+    * { box-sizing:border-box; margin:0; padding:0; }
+    body { background:var(--bg); color:var(--text); font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; min-height:100vh; display:flex; align-items:center; justify-content:center; }
+    .card { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:48px 40px; max-width:420px; width:100%; text-align:center; }
+    .icon { font-size:48px; margin-bottom:20px; }
+    h1 { font-size:22px; font-weight:700; margin-bottom:10px; }
+    p { color:var(--muted); font-size:14px; line-height:1.6; }
+    .badge { display:inline-block; background:rgba(107,114,128,0.2); color:var(--unknown); font-size:12px; font-weight:600; padding:4px 12px; border-radius:20px; margin-bottom:24px; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="icon">⏸</div>
+    <span class="badge">Service suspendu</span>
+    <h1>Ce service est temporairement indisponible</h1>
+    <p>L'accès à cet équipement a été suspendu par l'administrateur. Veuillez réessayer ultérieurement ou contacter l'administrateur.</p>
+  </div>
+</body>
+</html>"""
+    return Response(content=html, media_type="text/html", status_code=503)
+
+
 @router.get("/auth/check", include_in_schema=False)
 async def auth_check(request: Request):
     """Used by Caddy forward_auth. Returns 200 if valid, 302 to login if not."""
