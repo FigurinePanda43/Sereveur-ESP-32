@@ -114,8 +114,11 @@ async def terminal_ws(websocket: WebSocket):
     proc = await asyncio.create_subprocess_exec(
         "docker", "run", "--rm", "-i", "-t",
         "--name", container_name,
-        "--privileged", "--pid=host",
-        "justincormack/nsenter1", "bash", "-l",
+        "--privileged",
+        "--pid=host", "--net=host", "--ipc=host", "--uts=host",
+        "-v", "/:/host",
+        "alpine",
+        "chroot", "/host", "/bin/sh", "-c", "exec bash -l 2>/dev/null || exec sh -l",
         stdin=slave_fd,
         stdout=slave_fd,
         stderr=slave_fd,
