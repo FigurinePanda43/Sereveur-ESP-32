@@ -33,6 +33,16 @@ async def create_dns_record(slug: str) -> bool:
     content = f"{tunnel_id}.cfargotunnel.com"
 
     async with httpx.AsyncClient() as client:
+        existing = await client.get(
+            f"{CF_API}/zones/{zone_id}/dns_records",
+            headers=_get_headers(),
+            params={"name": name},
+            timeout=10,
+        )
+        if existing.status_code == 200 and existing.json().get("result"):
+            logger.info("DNS déjà présent : %s", name)
+            return True
+
         resp = await client.post(
             f"{CF_API}/zones/{zone_id}/dns_records",
             headers=_get_headers(),
