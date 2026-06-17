@@ -61,10 +61,9 @@ def _build_caddyfile(devices: List) -> str:
         elif mode == "protected":
             lines += [
                 f"http://{device_domain} {{",
-                "    forward_auth backend:8000 {",
+                "    @notws not header Upgrade websocket",
+                "    forward_auth @notws backend:8000 {",
                 "        uri /auth/check",
-                "        header_up -Connection",
-                "        header_up -Upgrade",
                 "    }",
                 *_proxy_block(device),
                 "}",
