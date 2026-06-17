@@ -4,7 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Gestionnaire de publication de services locaux</title>
-  <link rel="stylesheet" href="/css/style.css?v=8">
+  <link rel="stylesheet" href="/css/style.css?v=9">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css">
 </head>
 <body>
 
@@ -23,6 +24,7 @@
           ⬆
           <span class="update-badge" id="update-badge" hidden></span>
         </button>
+        <button class="btn btn-ghost btn-icon-only" id="btn-terminal" title="Terminal serveur">⌨</button>
         <a href="/auth/logout" class="btn btn-ghost btn-icon-only" title="Déconnexion">⏻</a>
       </div>
     </div>
@@ -168,8 +170,23 @@
     </div>
   </div>
 
+  <!-- Modal terminal serveur -->
+  <div class="modal-backdrop" id="terminal-backdrop" hidden>
+    <div class="modal modal-terminal" role="dialog" aria-modal="true">
+      <div class="modal-header">
+        <h2 class="modal-title">Terminal serveur</h2>
+        <button class="modal-close" id="terminal-modal-close">&times;</button>
+      </div>
+      <div class="terminal-wrap">
+        <div id="terminal-el"></div>
+      </div>
+    </div>
+  </div>
+
   <div class="toast" id="toast" hidden></div>
 
+  <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.js"></script>
   <script src="/js/app.js"></script>
 </body>
 </html>
