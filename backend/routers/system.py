@@ -23,6 +23,39 @@ async def _stream_command(cmd: list[str], cwd: str):
     yield f"\n[EXIT {proc.returncode}]\n"
 
 
+async def _git_output(*args: str) -> tuple[int, str]:
+    proc = await asyncio.create_subprocess_exec(
+        "git", *args,
+        cwd=PROJECT_DIR,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.STDOUT,
+    )
+    out, _ = await proc.communicate()
+    return proc.returncode, out.decode(errors="replace").strip()
+
+
+@router.get("/update-check")
+async def update_check():
+    rc, _ = await _git_output("fetch", "origin", "main", "--quiet")
+    if rc != 0:
+        return {"update_available": False, "error": "git fetch a échoué"}
+
+    rc_local, local_commit = await _git_output("rev-parse", "HEAD")
+    rc_remote, remote_commit = await _git_output("rev-parse", "origin/main")
+    if rc_local != 0 or rc_remote != 0:
+        return {"update_available": False, "error": "impossible de lire les commits"}
+
+    rc_count, count_out = await _git_output("rev-list", "--count", "HEAD..origin/main")
+    commits_behind = int(count_out) if rc_count == 0 and count_out.isdigit() else 0
+
+    return {
+        "update_available": commits_behind > 0,
+        "commits_behind": commits_behind,
+        "current_commit": local_commit[:7],
+        "latest_commit": remote_commit[:7],
+    }
+
+
 async def _update_generator():
     yield "=== git pull ===\n"
     async for line in _stream_command(["git", "pull", "origin", "main"], cwd=PROJECT_DIR):

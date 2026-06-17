@@ -1,4 +1,4 @@
-# Sereveur-ESP-32
+# Gestionnaire de publication de services locaux
 
 Plateforme centralisée d'administration et d'accès sécurisé aux équipements ESP32 via internet.
 

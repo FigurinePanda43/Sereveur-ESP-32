@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Start all ESP32 Manager services via Docker Compose.
+# Start all Gestionnaire de publication de services locaux services via Docker Compose.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -16,7 +16,7 @@ if grep -qE "^(CLOUDFLARE_TUNNEL_TOKEN=)$" .env 2>/dev/null; then
     echo "  Le tunnel Cloudflare ne fonctionnera pas."
 fi
 
-echo "=== Démarrage ESP32 Manager ==="
+echo "=== Démarrage Gestionnaire de publication de services locaux ==="
 docker compose up -d --remove-orphans
 
 echo ""

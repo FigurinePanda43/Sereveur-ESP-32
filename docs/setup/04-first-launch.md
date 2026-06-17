@@ -144,7 +144,7 @@ Pour protéger le portail contre l'accès public :
 1. Aller sur https://one.dash.cloudflare.com
 2. **Access** → **Applications** → **Add an Application**
 3. Choisir **Self-hosted**
-4. Nom : `ESP32 Manager`
+4. Nom : `Gestionnaire de publication de services locaux`
 5. Application domain : `iot.mondomaine.com` et `*.mondomaine.com`
 6. Politique : autoriser votre email uniquement
 

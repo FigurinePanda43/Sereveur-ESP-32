@@ -1,10 +1,12 @@
 const API = "/api/devices";
 const REFRESH_INTERVAL = 30_000;
+const UPDATE_CHECK_INTERVAL = 10 * 60_000;
 
 let devices = [];
 let deleteTarget = null;
 let modeTarget = null;
 let refreshTimer = null;
+let updateCheckTimer = null;
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -415,11 +417,35 @@ document.addEventListener("keydown", (e) => {
 const updateBackdrop = document.getElementById("update-backdrop");
 const updateOutput   = document.getElementById("update-output");
 const updateCloseBtn = document.getElementById("update-close-btn");
+const updateBtn      = document.getElementById("btn-update");
+const updateBadge    = document.getElementById("update-badge");
 
-document.getElementById("btn-update").addEventListener("click", async () => {
+async function checkForUpdates() {
+  try {
+    const res = await fetch("/api/system/update-check", { credentials: "same-origin" });
+    if (res.status === 401) return;
+    const data = await res.json();
+    const available = Boolean(data.update_available);
+    updateBadge.hidden = !available;
+    updateBtn.title = available
+      ? `Mise à jour disponible (${data.commits_behind} commit${data.commits_behind > 1 ? "s" : ""})`
+      : "Mettre à jour depuis GitHub";
+  } catch (e) {
+    // Vérification silencieuse — on ignore les échecs réseau ponctuels
+  }
+}
+
+function startUpdateCheck() {
+  clearInterval(updateCheckTimer);
+  checkForUpdates();
+  updateCheckTimer = setInterval(checkForUpdates, UPDATE_CHECK_INTERVAL);
+}
+
+updateBtn.addEventListener("click", async () => {
   updateOutput.textContent = "";
   updateCloseBtn.disabled = true;
   updateBackdrop.hidden = false;
+  updateBadge.hidden = true;
 
   try {
     const res = await fetch("/api/system/update", {
@@ -452,3 +478,4 @@ updateCloseBtn.addEventListener("click", () => { updateBackdrop.hidden = true; }
 
 loadDevices();
 startAutoRefresh();
+startUpdateCheck();

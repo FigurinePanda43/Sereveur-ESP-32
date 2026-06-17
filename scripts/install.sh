@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# Install ESP32 Manager: prepare .env, create directories, pull Docker images.
+# Install Gestionnaire de publication de services locaux: prepare .env, create directories, pull Docker images.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 cd "$PROJECT_DIR"
 
-echo "=== Installation ESP32 Manager ==="
+echo "=== Installation Gestionnaire de publication de services locaux ==="
 
 # Vérification des dépendances
 if ! command -v docker &>/dev/null; then

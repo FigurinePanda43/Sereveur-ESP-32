@@ -55,6 +55,7 @@ body {
   align-items: center;
   gap: 10px;
   min-width: 0;
+  flex: 1;
 }
 
 .header-actions {
@@ -67,14 +68,30 @@ body {
 .btn-icon-only {
   padding: 8px 12px;
   font-size: 16px;
+  position: relative;
 }
 
-.header-icon { font-size: 22px; }
+.update-badge {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--offline);
+  box-shadow: 0 0 0 2px var(--surface), 0 0 6px var(--offline);
+}
+
+.header-icon { font-size: 22px; flex-shrink: 0; }
 
 .header-title {
   font-size: 18px;
   font-weight: 700;
   color: var(--text);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* Main */
