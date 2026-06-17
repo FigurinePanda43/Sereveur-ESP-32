@@ -96,7 +96,7 @@ async def lifespan(app: FastAPI):
             pass
 
 
-app = FastAPI(title="Gestionnaire de publication de services locaux", version="2.0.0", lifespan=lifespan)
+app = FastAPI(title="Gestionnaire de publication de services locaux", version="2.0.1", lifespan=lifespan)
 
 app.add_middleware(BaseHTTPMiddleware, dispatch=auth_middleware)
 
