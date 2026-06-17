@@ -47,8 +47,16 @@ async def create_device(payload: DeviceCreate, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(device)
 
-    await cloudflare.create_dns_record(payload.slug)
+    dns_ok = await cloudflare.create_dns_record(payload.slug)
     await caddy.sync_caddy(db.query(Device).all())
+
+    if not dns_ok:
+        db.refresh(device)
+        raise HTTPException(
+            status_code=502,
+            detail="Équipement créé mais l'enregistrement DNS Cloudflare a échoué. "
+                   "Vérifiez les identifiants Cloudflare puis modifiez l'équipement pour réessayer.",
+        )
 
     return device
 
@@ -72,6 +80,7 @@ async def update_device(device_id: int, payload: DeviceUpdate, db: Session = Dep
     db.commit()
     db.refresh(device)
 
+    await cloudflare.create_dns_record(device.slug)
     await caddy.sync_caddy(db.query(Device).all())
     return device
 
