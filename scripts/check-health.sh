@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Check health of all ESP32 Manager components.
+# Check health of all Gestionnaire de publication de services locaux components.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -7,7 +7,7 @@ cd "$(dirname "$SCRIPT_DIR")"
 
 ALL_OK=true
 
-echo "=== Vérification de santé ESP32 Manager ==="
+echo "=== Vérification de santé Gestionnaire de publication de services locaux ==="
 echo ""
 
 # ── Conteneurs Docker ──────────────────────────────────────────────────────────

@@ -1,5 +1,5 @@
 """
-Tests de la plateforme ESP32 Manager.
+Tests de la plateforme Gestionnaire de publication de services locaux.
 
 Lancement :
     cd backend
