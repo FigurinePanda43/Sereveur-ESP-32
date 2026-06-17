@@ -298,6 +298,16 @@ body {
 
 .modal-sm { max-width: 360px; }
 
+.modal-terminal { max-width: 900px; width: 95vw; }
+
+.terminal-wrap {
+  padding: 16px;
+  background: #0a0c12;
+  border-radius: 0 0 var(--radius) var(--radius);
+}
+
+#terminal-el { height: 480px; }
+
 .modal-header {
   display: flex;
   align-items: center;

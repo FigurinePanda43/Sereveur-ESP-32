@@ -474,6 +474,68 @@ document.getElementById("update-modal-close").addEventListener("click", () => {
 });
 updateCloseBtn.addEventListener("click", () => { updateBackdrop.hidden = true; });
 
+// ── Terminal ──────────────────────────────────────────────────────────────────
+
+const terminalBackdrop = document.getElementById("terminal-backdrop");
+let term = null;
+let termFit = null;
+let termSocket = null;
+
+function connectTerminalSocket() {
+  if (termSocket && termSocket.readyState === WebSocket.OPEN) return;
+  const proto = location.protocol === "https:" ? "wss:" : "ws:";
+  termSocket = new WebSocket(`${proto}//${location.host}/api/system/terminal`);
+  termSocket.binaryType = "arraybuffer";
+
+  termSocket.addEventListener("open", () => sendResize());
+  termSocket.addEventListener("message", (ev) => {
+    const bytes = ev.data instanceof ArrayBuffer ? new Uint8Array(ev.data) : null;
+    term.write(bytes ? new TextDecoder().decode(bytes) : ev.data);
+  });
+  termSocket.addEventListener("close", () => {
+    term.write("\r\n\x1b[31m[Connexion terminale fermée]\x1b[0m\r\n");
+  });
+  termSocket.addEventListener("error", () => {
+    term.write("\r\n\x1b[31m[Erreur de connexion terminale]\x1b[0m\r\n");
+  });
+}
+
+function sendResize() {
+  if (!termSocket || termSocket.readyState !== WebSocket.OPEN || !term) return;
+  termSocket.send(JSON.stringify({ type: "resize", cols: term.cols, rows: term.rows }));
+}
+
+function openTerminal() {
+  terminalBackdrop.hidden = false;
+
+  if (!term) {
+    term = new Terminal({ cursorBlink: true, fontSize: 13, theme: { background: "#0a0c12" } });
+    termFit = new FitAddon.FitAddon();
+    term.loadAddon(termFit);
+    term.open(document.getElementById("terminal-el"));
+    term.onData((data) => {
+      if (termSocket && termSocket.readyState === WebSocket.OPEN) {
+        termSocket.send(new TextEncoder().encode(data));
+      }
+    });
+  }
+
+  connectTerminalSocket();
+  setTimeout(() => { termFit.fit(); sendResize(); }, 50);
+}
+
+function closeTerminal() {
+  terminalBackdrop.hidden = true;
+  if (termSocket) { termSocket.close(); termSocket = null; }
+}
+
+document.getElementById("btn-terminal").addEventListener("click", openTerminal);
+document.getElementById("terminal-modal-close").addEventListener("click", closeTerminal);
+terminalBackdrop.addEventListener("click", (e) => { if (e.target === terminalBackdrop) closeTerminal(); });
+window.addEventListener("resize", () => {
+  if (!terminalBackdrop.hidden && termFit) { termFit.fit(); sendResize(); }
+});
+
 // ── Init ──────────────────────────────────────────────────────────────────────
 
 loadDevices();
