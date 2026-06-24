@@ -70,6 +70,7 @@ class DeviceResponse(BaseModel):
     public_until: Optional[datetime]
     last_access_mode_change: Optional[datetime]
     status: str
+    status_detail: Optional[str]
     created_at: datetime
     last_seen: Optional[datetime]
 

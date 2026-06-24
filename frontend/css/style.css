@@ -211,6 +211,13 @@ body {
 
 .meta-value { color: var(--text); }
 
+.status-detail {
+  color: var(--text-muted);
+  font-size: 12px;
+  font-style: italic;
+  word-break: break-word;
+}
+
 .card-url {
   display: flex;
   align-items: center;

@@ -107,6 +107,11 @@ function renderCard(d) {
         <span class="meta-label">Statut</span>
         <span class="meta-value">${statusText}</span>
       </div>
+      ${!isSuspended && ["offline", "slow"].includes(d.status) && d.status_detail ? `
+      <div class="card-meta-row">
+        <span class="meta-label">Détail</span>
+        <span class="meta-value status-detail">${esc(d.status_detail)}</span>
+      </div>` : ""}
       <div class="card-meta-row">
         <span class="meta-label">IP locale</span>
         <span class="meta-value">${esc(d.local_ip)}:${esc(String(d.local_port))}</span>
