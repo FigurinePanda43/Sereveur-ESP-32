@@ -15,11 +15,24 @@ SLOW_THRESHOLD = 3.0
 HTTP_TIMEOUT = 5.0
 
 
+def _describe_error(exc: Exception) -> str:
+    if isinstance(exc, httpx.ConnectTimeout):
+        return f"Délai de connexion dépassé ({HTTP_TIMEOUT:.0f}s) — équipement injoignable"
+    if isinstance(exc, httpx.ReadTimeout):
+        return f"Délai de réponse dépassé ({HTTP_TIMEOUT:.0f}s) — équipement trop lent"
+    if isinstance(exc, httpx.ConnectError):
+        return "Connexion refusée ou IP/port injoignable depuis le serveur"
+    if isinstance(exc, (httpx.RemoteProtocolError, httpx.ProtocolError)):
+        return "Réponse invalide — vérifiez le protocole (HTTP/HTTPS)"
+    return f"{type(exc).__name__} : {exc}"
+
+
 async def check_device(db: Session, device: Device) -> str:
     proto = device.local_protocol or "http"
     url = f"{proto}://{device.local_ip}:{device.local_port}"
     status = "offline"
     update_last_seen = False
+    detail = None
 
     try:
         loop = asyncio.get_event_loop()
@@ -31,10 +44,13 @@ async def check_device(db: Session, device: Device) -> str:
         if resp.status_code < 500:
             status = "slow" if elapsed > SLOW_THRESHOLD else "online"
             update_last_seen = True
-    except Exception:
+        else:
+            detail = f"Erreur serveur HTTP {resp.status_code}"
+    except Exception as exc:
         status = "offline"
+        detail = _describe_error(exc)
 
-    update_data: dict = {"status": status}
+    update_data: dict = {"status": status, "status_detail": detail}
     if update_last_seen:
         update_data["last_seen"] = datetime.now(timezone.utc)
 

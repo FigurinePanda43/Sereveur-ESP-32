@@ -38,6 +38,7 @@ async def create_device(payload: DeviceCreate, db: Session = Depends(get_db)):
         slug=payload.slug,
         local_ip=payload.local_ip,
         local_port=payload.local_port,
+        local_protocol=payload.local_protocol,
         description=payload.description,
         public_url=f"https://{payload.slug}.{DOMAIN}",
         status="unknown",

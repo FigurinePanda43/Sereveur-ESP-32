@@ -16,6 +16,7 @@ class Device(Base):
     description = Column(String, default="")
     enabled = Column(Boolean, nullable=False, default=True)  # kept for migration compatibility
     status = Column(String, default="unknown")
+    status_detail = Column(String, nullable=True)
     created_at = Column(DateTime, server_default=func.now())
     last_seen = Column(DateTime, nullable=True)
     # New columns (added via migration in main.py lifespan)
