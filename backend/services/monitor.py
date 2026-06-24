@@ -16,14 +16,15 @@ HTTP_TIMEOUT = 5.0
 
 
 async def check_device(db: Session, device: Device) -> str:
-    url = f"http://{device.local_ip}:{device.local_port}"
+    proto = device.local_protocol or "http"
+    url = f"{proto}://{device.local_ip}:{device.local_port}"
     status = "offline"
     update_last_seen = False
 
     try:
         loop = asyncio.get_event_loop()
         start = loop.time()
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(verify=False) as client:
             resp = await client.get(url, timeout=HTTP_TIMEOUT)
         elapsed = loop.time() - start
 
