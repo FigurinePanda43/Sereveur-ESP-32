@@ -1,14 +1,17 @@
 import asyncio
 import fcntl
+import ipaddress
 import json
 import logging
 import os
 import pty
+import re
 import struct
 import termios
 import uuid
 
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+import httpx
+from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect
 from fastapi.responses import StreamingResponse
 
 from auth import COOKIE_NAME, verify_token
@@ -88,6 +91,139 @@ async def update():
         _update_generator(),
         media_type="text/plain; charset=utf-8",
         headers={"X-Accel-Buffering": "no"},
+    )
+
+
+# ── Scan réseau local ──────────────────────────────────────────────────────────
+
+# Ports web courants pour l'auto-hébergement (services domotique/média/admin).
+WEB_PORTS = [
+    80, 81, 443, 3000, 3001, 5000, 5001, 5601, 7878, 8000, 8006, 8008,
+    8080, 8081, 8096, 8112, 8123, 8181, 8443, 8888, 8989, 9000, 9091, 1880, 2019, 32400,
+]
+
+# Ports où l'on tente HTTPS en premier (généralement en TLS).
+_HTTPS_FIRST = {443, 8443, 8006}
+
+_TITLE_RE = re.compile(r"<title[^>]*>(.*?)</title>", re.IGNORECASE | re.DOTALL)
+
+# Limites de sûreté : évite de lancer un scan géant qui saturerait le réseau.
+_MAX_HOSTS = 512
+_TCP_TIMEOUT = 0.6
+_HTTP_TIMEOUT = 2.5
+_CONCURRENCY = 150
+
+
+async def _probe_tcp(ip: str, port: int) -> bool:
+    """Retourne True si le port TCP accepte une connexion."""
+    try:
+        fut = asyncio.open_connection(ip, port)
+        _, writer = await asyncio.wait_for(fut, timeout=_TCP_TIMEOUT)
+        writer.close()
+        try:
+            await writer.wait_closed()
+        except Exception:
+            pass
+        return True
+    except Exception:
+        return False
+
+
+def _extract_title(html: str) -> str | None:
+    m = _TITLE_RE.search(html or "")
+    if not m:
+        return None
+    title = re.sub(r"\s+", " ", m.group(1)).strip()
+    return title[:80] or None
+
+
+async def _http_info(ip: str, port: int) -> dict:
+    """Sonde HTTP(S) un port ouvert pour confirmer une interface web + titre."""
+    schemes = ["https", "http"] if port in _HTTPS_FIRST else ["http", "https"]
+    for scheme in schemes:
+        url = f"{scheme}://{ip}:{port}"
+        try:
+            async with httpx.AsyncClient(verify=False, follow_redirects=True) as client:
+                resp = await client.get(url, timeout=_HTTP_TIMEOUT)
+            return {
+                "scheme": scheme,
+                "status": resp.status_code,
+                "title": _extract_title(resp.text),
+                "is_web": True,
+            }
+        except Exception:
+            continue
+    # Port ouvert mais pas de réponse HTTP exploitable (autre protocole).
+    return {"scheme": "http", "status": None, "title": None, "is_web": False}
+
+
+async def _scan_generator(network: str):
+    try:
+        net = ipaddress.ip_network(network, strict=False)
+    except ValueError:
+        yield json.dumps({"type": "error", "message": f"Réseau invalide : {network}"}) + "\n"
+        return
+
+    hosts = [str(h) for h in net.hosts()] or [str(net.network_address)]
+    if len(hosts) > _MAX_HOSTS:
+        yield json.dumps({
+            "type": "error",
+            "message": f"Plage trop grande ({len(hosts)} hôtes, max {_MAX_HOSTS}). Utilisez un /23 ou plus petit.",
+        }) + "\n"
+        return
+
+    total = len(hosts) * len(WEB_PORTS)
+    sem = asyncio.Semaphore(_CONCURRENCY)
+    queue: asyncio.Queue = asyncio.Queue()
+
+    async def worker(ip: str, port: int):
+        async with sem:
+            is_open = await _probe_tcp(ip, port)
+        if is_open:
+            info = await _http_info(ip, port)
+            await queue.put(("service", {"ip": ip, "port": port, **info}))
+        await queue.put(("progress", None))
+
+    tasks = [asyncio.create_task(worker(ip, port)) for ip in hosts for port in WEB_PORTS]
+
+    async def waiter():
+        await asyncio.gather(*tasks, return_exceptions=True)
+        await queue.put(("done", None))
+
+    waiter_task = asyncio.create_task(waiter())
+
+    yield json.dumps({
+        "type": "start", "total": total, "hosts": len(hosts), "ports": len(WEB_PORTS),
+    }) + "\n"
+
+    done = 0
+    found = 0
+    try:
+        while True:
+            kind, data = await queue.get()
+            if kind == "done":
+                break
+            if kind == "progress":
+                done += 1
+                if done % 40 == 0 or done == total:
+                    yield json.dumps({"type": "progress", "done": done, "total": total}) + "\n"
+            elif kind == "service":
+                found += 1
+                yield json.dumps({"type": "service", **data}) + "\n"
+    finally:
+        waiter_task.cancel()
+        for t in tasks:
+            t.cancel()
+
+    yield json.dumps({"type": "complete", "found": found}) + "\n"
+
+
+@router.get("/scan-network")
+async def scan_network(subnet: str = Query("192.168.1.0/24")):
+    return StreamingResponse(
+        _scan_generator(subnet),
+        media_type="application/x-ndjson",
+        headers={"X-Accel-Buffering": "no", "Cache-Control": "no-cache"},
     )
 
 
