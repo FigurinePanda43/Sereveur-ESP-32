@@ -234,6 +234,24 @@ function closeModal() {
   fieldSlug.disabled = false;
 }
 
+// Ouvre le formulaire d'ajout pré-rempli depuis un résultat de scan réseau.
+function openModalPrefill(svc) {
+  openModal();
+  fieldIp.value = svc.ip;
+  fieldPort.value = svc.port;
+  fieldHttps.checked = svc.scheme === "https";
+  if (svc.title) {
+    fieldName.value = svc.title;
+    fieldSlug.value = svc.title
+      .toLowerCase()
+      .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 63);
+    updateSlugPreview();
+  }
+}
+
 function updateSlugPreview() {
   const slug = fieldSlug.value.trim();
   slugPreview.textContent = slug ? `→ https://${slug}.iot.votre-domaine.com` : "";
@@ -540,6 +558,127 @@ terminalBackdrop.addEventListener("click", (e) => { if (e.target === terminalBac
 window.addEventListener("resize", () => {
   if (!terminalBackdrop.hidden && termFit) { termFit.fit(); sendResize(); }
 });
+
+// ── Scan réseau ───────────────────────────────────────────────────────────────
+
+const scanBackdrop     = document.getElementById("scan-backdrop");
+const scanSubnet       = document.getElementById("scan-subnet");
+const scanStartBtn     = document.getElementById("scan-start-btn");
+const scanResults      = document.getElementById("scan-results");
+const scanProgress     = document.getElementById("scan-progress");
+const scanProgressFill = document.getElementById("scan-progress-fill");
+const scanProgressText = document.getElementById("scan-progress-text");
+let scanning = false;
+
+// Devine la plage réseau à partir des équipements existants (sinon 192.168.1.0/24).
+function guessSubnet() {
+  const ipv4 = devices.map(d => d.local_ip).find(ip => /^\d+\.\d+\.\d+\.\d+$/.test(ip || ""));
+  if (ipv4) {
+    const parts = ipv4.split(".");
+    return `${parts[0]}.${parts[1]}.${parts[2]}.0/24`;
+  }
+  return "192.168.1.0/24";
+}
+
+function openScan() {
+  scanBackdrop.hidden = false;
+  scanSubnet.value = guessSubnet();
+}
+
+function closeScan() {
+  scanBackdrop.hidden = true;
+}
+
+function addScanItem(svc) {
+  const item = document.createElement("div");
+  item.className = "scan-item";
+  const badgeClass = svc.is_web ? (svc.scheme === "https" ? "https" : "") : "raw";
+  const badgeText = svc.is_web ? svc.scheme.toUpperCase() : "TCP";
+  const label = svc.title || (svc.is_web ? "Interface web" : "Port ouvert (non-HTTP)");
+  item.innerHTML = `
+    <span class="scan-item-badge ${badgeClass}">${badgeText}</span>
+    <div class="scan-item-main">
+      <div class="scan-item-addr">${esc(svc.ip)}:${esc(String(svc.port))}</div>
+      <div class="scan-item-title">${esc(label)}${svc.status ? ` · HTTP ${svc.status}` : ""}</div>
+    </div>
+    <button class="btn btn-secondary scan-add-btn">+ Ajouter</button>
+  `;
+  item.querySelector(".scan-add-btn").addEventListener("click", () => {
+    closeScan();
+    openModalPrefill(svc);
+  });
+  scanResults.appendChild(item);
+}
+
+async function runScan() {
+  if (scanning) return;
+  const subnet = scanSubnet.value.trim();
+  if (!subnet) return;
+
+  scanning = true;
+  scanStartBtn.disabled = true;
+  scanStartBtn.textContent = "Scan…";
+  scanResults.innerHTML = "";
+  scanProgress.hidden = false;
+  scanProgressFill.style.width = "0%";
+  scanProgressText.textContent = "Démarrage…";
+
+  let foundCount = 0;
+
+  try {
+    const res = await fetch(`/api/system/scan-network?subnet=${encodeURIComponent(subnet)}`, {
+      credentials: "same-origin",
+    });
+    if (res.status === 401) { window.location.href = "/auth/login"; return; }
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop();
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        let evt;
+        try { evt = JSON.parse(line); } catch { continue; }
+        if (evt.type === "progress") {
+          const pct = evt.total ? Math.round((evt.done / evt.total) * 100) : 0;
+          scanProgressFill.style.width = `${pct}%`;
+          scanProgressText.textContent = `${pct}% · ${foundCount} trouvé${foundCount > 1 ? "s" : ""}`;
+        } else if (evt.type === "service") {
+          foundCount++;
+          addScanItem(evt);
+          scanProgressText.textContent = `${foundCount} trouvé${foundCount > 1 ? "s" : ""}`;
+        } else if (evt.type === "error") {
+          showToast(evt.message, "error");
+        } else if (evt.type === "complete") {
+          scanProgressFill.style.width = "100%";
+          scanProgressText.textContent = `Terminé · ${evt.found} trouvé${evt.found > 1 ? "s" : ""}`;
+        }
+      }
+    }
+
+    if (foundCount === 0) {
+      scanResults.innerHTML = `<p class="scan-hint">Aucune interface web trouvée sur cette plage.</p>`;
+    }
+  } catch (e) {
+    showToast("Scan interrompu", "error");
+  } finally {
+    scanning = false;
+    scanStartBtn.disabled = false;
+    scanStartBtn.textContent = "Scanner";
+  }
+}
+
+document.getElementById("btn-scan").addEventListener("click", openScan);
+document.getElementById("scan-modal-close").addEventListener("click", closeScan);
+scanBackdrop.addEventListener("click", (e) => { if (e.target === scanBackdrop) closeScan(); });
+scanStartBtn.addEventListener("click", runScan);
+scanSubnet.addEventListener("keydown", (e) => { if (e.key === "Enter") runScan(); });
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 
