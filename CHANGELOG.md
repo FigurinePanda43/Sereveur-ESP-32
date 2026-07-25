@@ -8,6 +8,7 @@
 - `backend/routers/users.py` — API CRUD des utilisateurs (`/api/users/`)
 - `frontend/js/users.js` — Interface de gestion des utilisateurs
 - `backend/tests/test_users.py` — Tests (schémas, CRUD, contrôle d'accès, cascade)
+- `backend/tests/conftest.py` — Rend `pytest tests/` exécutable en local et en conteneur
 - `docs/features/user-management.md` — Documentation de la fonctionnalité
 
 **Fichiers modifiés :**
@@ -21,6 +22,9 @@
 - `frontend/js/app.js` — Routage des vues
 - `frontend/css/style.css` — Styles navigation, outils, cartes utilisateurs
 - `frontend/login.html` — Messages d'erreur « compte expiré / désactivé »
+- `backend/tests/test_devices.py` — Mise à jour de la suite existante (format Caddyfile
+  texte au lieu de l'ancienne config JSON, authentification des appels API, tests des
+  modes d'accès)
 
 **Impact :** Un utilisateur créé par l'administrateur accède uniquement aux services
 qui lui sont attribués (mode Protégé), jusqu'à sa date de validité (ou sans limite).
