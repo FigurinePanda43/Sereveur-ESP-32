@@ -20,9 +20,17 @@ Internet
   → Cloudflare (DNS / WAF / protection DDoS)
   → Cloudflare Tunnel (cloudflared, pas d'ouverture de port)
   → Caddy (reverse proxy, port 80 interne Docker)
-  → FastAPI backend (port 8000, interne Docker) pour iot.DOMAIN
-  → ESP32 local (IP:port) pour slug.DOMAIN
+      • iot.DOMAIN            → FastAPI backend (port 8000) = portail admin
+      • slug.DOMAIN (protégé) → forward_auth /auth/check (backend) puis ESP32 local
+      • slug.DOMAIN (public)  → ESP32 local (IP:port) directement
+      • slug.DOMAIN (suspendu)→ page « service suspendu » (backend)
 ```
+
+Le portail `iot.DOMAIN` et les API `/api/*` sont protégés par un middleware de
+session (cookie signé HMAC). Pour les services en mode **protégé**, Caddy délègue
+l'autorisation au backend via `forward_auth` → `/auth/check`, qui accepte
+l'administrateur ainsi que les **utilisateurs** autorisés pour ce service et non
+expirés (voir `docs/features/user-management.md`).
 
 ### Conteneurs Docker
 
@@ -56,6 +64,13 @@ Table `devices` (SQLite via SQLAlchemy) :
 | `status`       | TEXT      | défaut "unknown"   |
 | `created_at`   | DATETIME  | server_default now |
 | `last_seen`    | DATETIME  | nullable           |
+| `access_mode`  | TEXT      | protected/suspended/public/public_temporary |
+| `public_until` | DATETIME  | nullable (accès public temporaire) |
+| `local_protocol` | TEXT    | http/https         |
+
+Tables complémentaires : `users` + `user_device_access` (gestion des utilisateurs à
+accès limité, voir `docs/features/user-management.md`), `auth_attempts`, `blocked_ips`,
+`access_logs` (authentification et journalisation).
 
 ### Gestion Caddy (dynamique)
 
@@ -123,6 +138,10 @@ Tâche asyncio en arrière-plan (`monitor.py`) :
 - [x] Documentation par fonctionnalité (docs/features/)
 - [x] Guides de configuration étape par étape (docs/setup/)
 - [x] CHANGELOG.md
+- [x] Modes d'accès par service (protégé / public temporaire / public / suspendu)
+- [x] Authentification locale (login/mot de passe admin, protection anti-bruteforce)
+- [x] Gestion des utilisateurs à accès limité (par service + date de validité)
+- [x] Interface en onglets (Équipements / Utilisateurs / Outils)
 
 ---
 
@@ -135,7 +154,6 @@ Aucune.
 ## Fonctionnalités prévues
 
 - [ ] Authentification Cloudflare Access (prioritaire)
-- [ ] Authentification locale (login/mot de passe) comme alternative
 - [ ] MQTT broker intégré
 - [ ] Intégration Home Assistant
 - [ ] Intégration Node-RED
@@ -184,3 +202,6 @@ Aucune.
 | 2026-06-13 | Surveillance HTTP plutôt que ping ICMP : plus représentative de la disponibilité réelle       |
 | 2026-06-13 | Ajout des scripts shell, tests pytest, guides setup, cloudflared/config.yml                   |
 | 2026-06-13 | Renommage `SECRET_KEY` → `APP_SECRET_KEY` dans .env.example pour cohérence avec le cahier    |
+| 2026-07-25 | Gestion des utilisateurs : accès limité par service + date de validité, rôles dans le jeton |
+| 2026-07-25 | Jeton de session enrichi d'un rôle (`admin`/`user`), compat. ascendante via `parse_token`   |
+| 2026-07-25 | Interface réorganisée en onglets (Équipements / Utilisateurs / Outils) pour désencombrer    |

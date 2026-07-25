@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Gestionnaire de publication de services locaux</title>
-  <link rel="stylesheet" href="/css/style.css?v=11">
+  <link rel="stylesheet" href="/css/style.css?v=12">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css">
 </head>
 <body>
@@ -16,51 +16,111 @@
         <span class="header-title">Gestionnaire de publication de services locaux</span>
       </div>
       <div class="header-actions">
-        <button class="btn btn-primary" id="btn-add">
-          <span class="btn-icon">+</span>
-          <span class="btn-label">Ajouter</span>
-        </button>
-        <button class="btn btn-ghost btn-icon-only" id="btn-update" title="Mettre à jour depuis GitHub">
-          ⬆
-          <span class="update-badge" id="update-badge" hidden></span>
-        </button>
-        <button class="btn btn-ghost btn-icon-only" id="btn-scan" title="Scanner le réseau local">📡</button>
-        <button class="btn btn-ghost btn-icon-only" id="btn-terminal" title="Terminal serveur">⌨</button>
         <a href="/auth/logout" class="btn btn-ghost btn-icon-only" title="Déconnexion">⏻</a>
       </div>
     </div>
+    <nav class="nav" id="main-nav">
+      <button class="nav-item active" data-view="devices">📊 Équipements</button>
+      <button class="nav-item" data-view="users">👤 Utilisateurs</button>
+      <button class="nav-item" data-view="tools">
+        🛠 Outils
+        <span class="update-badge" id="update-badge" hidden></span>
+      </button>
+    </nav>
   </header>
 
   <main class="main">
-    <div class="stats-bar" id="stats-bar">
-      <div class="stat">
-        <span class="stat-value" id="stat-total">—</span>
-        <span class="stat-label">Total</span>
-      </div>
-      <div class="stat">
-        <span class="stat-value stat-online" id="stat-online">—</span>
-        <span class="stat-label">En ligne</span>
-      </div>
-      <div class="stat">
-        <span class="stat-value stat-slow" id="stat-slow">—</span>
-        <span class="stat-label">Lents</span>
-      </div>
-      <div class="stat">
-        <span class="stat-value stat-offline" id="stat-offline">—</span>
-        <span class="stat-label">Hors ligne</span>
-      </div>
-      <div class="stat">
-        <span class="stat-value stat-suspended" id="stat-suspended">—</span>
-        <span class="stat-label">Suspendus</span>
-      </div>
-    </div>
 
-    <div class="device-grid" id="device-grid">
-      <div class="empty-state" id="empty-state" hidden>
-        <p>Aucun équipement enregistré.</p>
-        <button class="btn btn-primary" id="btn-add-empty">Ajouter le premier équipement</button>
+    <!-- ── Vue Équipements ─────────────────────────────────────────────── -->
+    <section class="view" id="view-devices">
+      <div class="stats-bar" id="stats-bar">
+        <div class="stat">
+          <span class="stat-value" id="stat-total">—</span>
+          <span class="stat-label">Total</span>
+        </div>
+        <div class="stat">
+          <span class="stat-value stat-online" id="stat-online">—</span>
+          <span class="stat-label">En ligne</span>
+        </div>
+        <div class="stat">
+          <span class="stat-value stat-slow" id="stat-slow">—</span>
+          <span class="stat-label">Lents</span>
+        </div>
+        <div class="stat">
+          <span class="stat-value stat-offline" id="stat-offline">—</span>
+          <span class="stat-label">Hors ligne</span>
+        </div>
+        <div class="stat">
+          <span class="stat-value stat-suspended" id="stat-suspended">—</span>
+          <span class="stat-label">Suspendus</span>
+        </div>
       </div>
-    </div>
+
+      <div class="view-toolbar">
+        <h2 class="view-title">Équipements</h2>
+        <button class="btn btn-primary" id="btn-add">
+          <span class="btn-icon">+</span>
+          <span class="btn-label">Ajouter un équipement</span>
+        </button>
+      </div>
+
+      <div class="device-grid" id="device-grid">
+        <div class="empty-state" id="empty-state" hidden>
+          <p>Aucun équipement enregistré.</p>
+          <button class="btn btn-primary" id="btn-add-empty">Ajouter le premier équipement</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Vue Utilisateurs ────────────────────────────────────────────── -->
+    <section class="view" id="view-users" hidden>
+      <div class="view-toolbar">
+        <h2 class="view-title">Utilisateurs</h2>
+        <button class="btn btn-primary" id="btn-add-user">
+          <span class="btn-icon">+</span>
+          <span class="btn-label">Ajouter un utilisateur</span>
+        </button>
+      </div>
+
+      <p class="view-hint">
+        Un utilisateur peut se connecter avec son identifiant et son mot de passe pour accéder
+        uniquement aux services qui lui sont attribués, en mode <strong>🔒 Protégé</strong>,
+        jusqu'à sa date de validité (ou sans limite de date).
+      </p>
+
+      <div class="user-list" id="user-list">
+        <div class="empty-state" id="user-empty-state" hidden>
+          <p>Aucun utilisateur créé.</p>
+          <button class="btn btn-primary" id="btn-add-user-empty">Créer le premier utilisateur</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Vue Outils ──────────────────────────────────────────────────── -->
+    <section class="view" id="view-tools" hidden>
+      <div class="view-toolbar">
+        <h2 class="view-title">Outils</h2>
+      </div>
+      <div class="tools-grid">
+        <button class="tool-card" id="btn-scan">
+          <span class="tool-icon">📡</span>
+          <span class="tool-name">Scanner le réseau local</span>
+          <span class="tool-desc">Découvrir les interfaces web sur votre réseau et les ajouter en un clic.</span>
+        </button>
+        <button class="tool-card" id="btn-terminal">
+          <span class="tool-icon">⌨</span>
+          <span class="tool-name">Terminal serveur</span>
+          <span class="tool-desc">Ouvrir un terminal root interactif sur la machine hôte.</span>
+        </button>
+        <button class="tool-card" id="btn-update">
+          <span class="tool-icon">⬆</span>
+          <span class="tool-name">Mise à jour du serveur</span>
+          <span class="tool-desc">Récupérer la dernière version depuis GitHub et redémarrer.</span>
+          <span class="tool-update-badge" id="tool-update-badge" hidden>Mise à jour disponible</span>
+        </button>
+      </div>
+    </section>
+
   </main>
 
   <!-- Modal add/edit device -->
@@ -110,7 +170,58 @@
     </div>
   </div>
 
-  <!-- Confirm delete -->
+  <!-- Modal add/edit user -->
+  <div class="modal-backdrop" id="user-modal-backdrop" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="user-modal-title">
+      <div class="modal-header">
+        <h2 class="modal-title" id="user-modal-title">Ajouter un utilisateur</h2>
+        <button class="modal-close" id="user-modal-close" aria-label="Fermer">&times;</button>
+      </div>
+      <form id="user-form" novalidate>
+        <input type="hidden" id="user-field-id">
+        <div class="form-group">
+          <label for="user-field-name">Identifiant <span class="required">*</span></label>
+          <input type="text" id="user-field-name" placeholder="ex : jean.dupont" maxlength="32" required autocomplete="off">
+          <span class="field-hint">3 à 32 caractères : lettres, chiffres, . _ -</span>
+        </div>
+        <div class="form-group">
+          <label for="user-field-password">Mot de passe <span class="required" id="user-password-required">*</span></label>
+          <input type="password" id="user-field-password" placeholder="6 caractères minimum" minlength="6" autocomplete="new-password">
+          <span class="field-hint" id="user-password-hint"></span>
+        </div>
+        <div class="form-group">
+          <label>Services autorisés</label>
+          <div class="device-picker" id="user-device-picker">
+            <p class="field-hint">Aucun équipement disponible.</p>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="checkbox-label">
+            <input type="checkbox" id="user-no-expiry" checked>
+            Accès sans limite de date
+          </label>
+        </div>
+        <div class="form-group" id="user-expiry-group" hidden>
+          <label for="user-field-expiry">Valable jusqu'au</label>
+          <input type="datetime-local" id="user-field-expiry">
+          <span class="field-hint">Au-delà de cette date/heure, l'accès est automatiquement refusé.</span>
+        </div>
+        <div class="form-group" id="user-enabled-group" hidden>
+          <label class="checkbox-label">
+            <input type="checkbox" id="user-field-enabled" checked>
+            Compte actif
+          </label>
+        </div>
+        <div class="form-error" id="user-form-error" hidden></div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" id="user-btn-cancel">Annuler</button>
+          <button type="submit" class="btn btn-primary" id="user-btn-submit">Enregistrer</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Confirm delete device -->
   <div class="modal-backdrop" id="confirm-backdrop" hidden>
     <div class="modal modal-sm" role="dialog" aria-modal="true">
       <div class="modal-header">
@@ -120,6 +231,20 @@
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" id="confirm-cancel">Annuler</button>
         <button type="button" class="btn btn-danger" id="confirm-ok">Supprimer</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Confirm delete user -->
+  <div class="modal-backdrop" id="user-confirm-backdrop" hidden>
+    <div class="modal modal-sm" role="dialog" aria-modal="true">
+      <div class="modal-header">
+        <h2 class="modal-title">Confirmer la suppression</h2>
+      </div>
+      <p id="user-confirm-text" class="confirm-text"></p>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" id="user-confirm-cancel">Annuler</button>
+        <button type="button" class="btn btn-danger" id="user-confirm-ok">Supprimer</button>
       </div>
     </div>
   </div>
@@ -135,7 +260,8 @@
         <p id="mode-device-name" style="font-weight:600;margin-bottom:16px;"></p>
         <div class="mode-actions">
           <button class="btn btn-secondary mode-btn" data-mode="suspended" style="width:100%;margin-bottom:8px;">⏸ Suspendre</button>
-          <button class="btn btn-secondary mode-btn" data-mode="protected" style="width:100%;margin-bottom:16px;">🔒 Protégé (authentification requise)</button>
+          <button class="btn btn-secondary mode-btn" data-mode="protected" style="width:100%;margin-bottom:4px;">🔒 Protégé (authentification requise)</button>
+          <p style="color:var(--text-muted);font-size:12px;margin-bottom:16px;">En mode protégé, l'administrateur et les utilisateurs autorisés (onglet Utilisateurs) peuvent accéder au service.</p>
           <p style="color:var(--text-muted);font-size:12px;margin-bottom:8px;">Accès public temporaire :</p>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">
             <button class="btn btn-ghost mode-btn" data-mode="public_temporary" data-duration="15m">15 min</button>
@@ -214,6 +340,7 @@
 
   <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.js"></script>
-  <script src="/js/app.js?v=4"></script>
+  <script src="/js/app.js?v=5"></script>
+  <script src="/js/users.js?v=1"></script>
 </body>
 </html>

@@ -12,20 +12,34 @@ Ou via Docker :
 import os
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import bcrypt
 import pytest
 
 # Variables d'environnement obligatoires avant tout import de l'application
 os.environ.setdefault("DATABASE_URL", "sqlite://")
 os.environ.setdefault("DOMAIN", "test.local")
 os.environ.setdefault("CADDY_ADMIN_URL", "http://mock-caddy:2019")
+os.environ.setdefault("APP_SECRET_KEY", "test-secret-key-0123456789abcdef0123456789")
+os.environ.setdefault("ADMIN_USER", "admin")
+os.environ.setdefault(
+    "ADMIN_PASSWORD_HASH",
+    bcrypt.hashpw(b"adminpw", bcrypt.gensalt()).decode(),
+)
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
 
+import models  # noqa: F401  (enregistre toutes les tables sur Base.metadata)
 from database import Base, get_db
 
-# Base de données en mémoire pour les tests (isolée, ne touche pas /data/)
-_test_engine = create_engine("sqlite://", connect_args={"check_same_thread": False})
+# Base de données en mémoire pour les tests (isolée, ne touche pas /data/).
+# StaticPool → une seule connexion partagée entre threads (endpoints sync/async).
+_test_engine = create_engine(
+    "sqlite://",
+    connect_args={"check_same_thread": False},
+    poolclass=StaticPool,
+)
 _TestSession = sessionmaker(autocommit=False, autoflush=False, bind=_test_engine)
 Base.metadata.create_all(bind=_test_engine)
 
@@ -38,6 +52,12 @@ def _override_get_db():
         db.close()
 
 
+def _admin_headers():
+    """En-tête de session administrateur (le middleware protège toutes les API)."""
+    import auth
+    return {"Cookie": f"{auth.COOKIE_NAME}={auth.make_token('admin', 'admin')}"}
+
+
 # ── Fixture principale ────────────────────────────────────────────────────────
 
 @pytest.fixture(scope="module")
@@ -48,6 +68,7 @@ def client():
         patch("services.cloudflare.create_dns_record", new_callable=AsyncMock, return_value=True),
         patch("services.cloudflare.delete_dns_record", new_callable=AsyncMock, return_value=True),
         patch("services.monitor.monitor_loop", new_callable=AsyncMock),
+        patch("services.access_expiry.expiry_loop", new_callable=AsyncMock),
         patch("main._wait_for_caddy", new_callable=AsyncMock, return_value=True),
     ):
         from fastapi.testclient import TestClient
@@ -143,14 +164,19 @@ class TestPortValidation:
 
 class TestHealth:
     def test_health_ok(self, client):
-        resp = client.get("/api/health")
+        resp = client.get("/api/health", headers=_admin_headers())
         assert resp.status_code == 200
         assert resp.json()["status"] == "ok"
+
+    def test_api_protegee_sans_session(self, client):
+        # Sans cookie de session, le middleware refuse l'accès aux API.
+        resp = client.get("/api/devices/", follow_redirects=False)
+        assert resp.status_code == 401
 
 
 class TestListDevices:
     def test_liste_vide_initiale(self, client):
-        resp = client.get("/api/devices/")
+        resp = client.get("/api/devices/", headers=_admin_headers())
         assert resp.status_code == 200
         assert resp.json() == []
 
@@ -164,7 +190,7 @@ class TestCreateDevice:
             "local_port": 80,
             "description": "Capteur de niveau",
         }
-        resp = client.post("/api/devices/", json=payload)
+        resp = client.post("/api/devices/", json=payload, headers=_admin_headers())
         assert resp.status_code == 201
         data = resp.json()
         assert data["slug"] == "cuve-go"
@@ -172,6 +198,8 @@ class TestCreateDevice:
         assert data["status"] == "unknown"
         assert data["local_ip"] == "192.168.1.45"
         assert data["local_port"] == 80
+        # Un nouvel équipement démarre en mode protégé
+        assert data["access_mode"] == "protected"
 
     def test_creation_slug_en_doublon(self, client):
         payload = {
@@ -179,7 +207,7 @@ class TestCreateDevice:
             "slug": "cuve-go",
             "local_ip": "192.168.1.46",
         }
-        resp = client.post("/api/devices/", json=payload)
+        resp = client.post("/api/devices/", json=payload, headers=_admin_headers())
         assert resp.status_code == 409
 
     def test_creation_ip_invalide_rejetee(self, client):
@@ -188,7 +216,7 @@ class TestCreateDevice:
             "slug": "test-bad-ip",
             "local_ip": "999.999.999.999",
         }
-        resp = client.post("/api/devices/", json=payload)
+        resp = client.post("/api/devices/", json=payload, headers=_admin_headers())
         assert resp.status_code == 422
 
     def test_creation_slug_invalide_rejete(self, client):
@@ -197,11 +225,11 @@ class TestCreateDevice:
             "slug": "mon équipement",
             "local_ip": "192.168.1.1",
         }
-        resp = client.post("/api/devices/", json=payload)
+        resp = client.post("/api/devices/", json=payload, headers=_admin_headers())
         assert resp.status_code == 422
 
     def test_liste_contient_equipement_cree(self, client):
-        resp = client.get("/api/devices/")
+        resp = client.get("/api/devices/", headers=_admin_headers())
         assert resp.status_code == 200
         slugs = [d["slug"] for d in resp.json()]
         assert "cuve-go" in slugs
@@ -209,105 +237,140 @@ class TestCreateDevice:
 
 class TestGetDevice:
     def test_get_existant(self, client):
-        resp = client.get("/api/devices/1")
+        resp = client.get("/api/devices/1", headers=_admin_headers())
         assert resp.status_code == 200
         assert resp.json()["id"] == 1
 
     def test_get_introuvable(self, client):
-        resp = client.get("/api/devices/9999")
+        resp = client.get("/api/devices/9999", headers=_admin_headers())
         assert resp.status_code == 404
 
 
 class TestUpdateDevice:
     def test_mise_a_jour_description(self, client):
-        resp = client.put("/api/devices/1", json={"description": "Mise à jour test"})
+        resp = client.put("/api/devices/1", json={"description": "Mise à jour test"}, headers=_admin_headers())
         assert resp.status_code == 200
         assert resp.json()["description"] == "Mise à jour test"
 
     def test_mise_a_jour_ip(self, client):
-        resp = client.put("/api/devices/1", json={"local_ip": "192.168.1.99"})
+        resp = client.put("/api/devices/1", json={"local_ip": "192.168.1.99"}, headers=_admin_headers())
         assert resp.status_code == 200
         assert resp.json()["local_ip"] == "192.168.1.99"
 
     def test_mise_a_jour_ip_invalide(self, client):
-        resp = client.put("/api/devices/1", json={"local_ip": "pas-une-ip"})
+        resp = client.put("/api/devices/1", json={"local_ip": "pas-une-ip"}, headers=_admin_headers())
         assert resp.status_code == 422
 
     def test_mise_a_jour_introuvable(self, client):
-        resp = client.put("/api/devices/9999", json={"description": "x"})
+        resp = client.put("/api/devices/9999", json={"description": "x"}, headers=_admin_headers())
         assert resp.status_code == 404
+
+
+class TestAccessMode:
+    def test_passage_en_public_temporaire(self, client):
+        resp = client.post(
+            "/api/devices/1/access-mode",
+            json={"access_mode": "public_temporary", "duration": "1h"},
+            headers=_admin_headers(),
+        )
+        assert resp.status_code == 200
+        assert resp.json()["access_mode"] == "public_temporary"
+        assert resp.json()["public_until"] is not None
+
+    def test_retour_en_protege(self, client):
+        resp = client.post(
+            "/api/devices/1/access-mode",
+            json={"access_mode": "protected"},
+            headers=_admin_headers(),
+        )
+        assert resp.status_code == 200
+        assert resp.json()["access_mode"] == "protected"
+        assert resp.json()["public_until"] is None
+
+    def test_duree_requise_pour_public_temporaire(self, client):
+        resp = client.post(
+            "/api/devices/1/access-mode",
+            json={"access_mode": "public_temporary"},
+            headers=_admin_headers(),
+        )
+        assert resp.status_code == 422
 
 
 class TestDeleteDevice:
     def test_suppression(self, client):
         # Créer un équipement dédié à la suppression
         payload = {"project_name": "À supprimer", "slug": "to-delete", "local_ip": "10.0.0.99"}
-        create_resp = client.post("/api/devices/", json=payload)
+        create_resp = client.post("/api/devices/", json=payload, headers=_admin_headers())
         assert create_resp.status_code == 201
         device_id = create_resp.json()["id"]
 
-        resp = client.delete(f"/api/devices/{device_id}")
+        resp = client.delete(f"/api/devices/{device_id}", headers=_admin_headers())
         assert resp.status_code == 204
 
         # Vérifier la suppression
-        assert client.get(f"/api/devices/{device_id}").status_code == 404
+        assert client.get(f"/api/devices/{device_id}", headers=_admin_headers()).status_code == 404
 
     def test_suppression_introuvable(self, client):
-        resp = client.delete("/api/devices/9999")
+        resp = client.delete("/api/devices/9999", headers=_admin_headers())
         assert resp.status_code == 404
 
 
 # ── Tests de la génération de configuration Caddy ────────────────────────────
 
-from services.caddy import _build_config
+from services.caddy import _build_caddyfile
+
+
+def _mock_device(slug, ip="192.168.1.10", port=80, mode="protected", protocol="http"):
+    d = MagicMock()
+    d.slug = slug
+    d.local_ip = ip
+    d.local_port = port
+    d.access_mode = mode
+    d.local_protocol = protocol
+    d.public_until = None
+    return d
 
 
 class TestCaddyConfigBuilder:
     def test_config_sans_equipement(self):
-        config = _build_config([])
-        routes = config["apps"]["http"]["servers"]["main"]["routes"]
-        assert len(routes) == 1
-        # Route principale uniquement
-        assert routes[0]["match"][0]["host"][0] == "iot.test.local"
+        conf = _build_caddyfile([])
+        # Route principale du portail admin uniquement
+        assert "http://iot.test.local {" in conf
+        assert "reverse_proxy backend:8000" in conf
 
-    def test_config_avec_un_equipement(self):
-        device = MagicMock()
-        device.slug = "pompe"
-        device.local_ip = "192.168.1.10"
-        device.local_port = 8080
+    def test_config_avec_un_equipement_protege(self):
+        conf = _build_caddyfile([_mock_device("pompe", "192.168.1.10", 8080)])
+        assert "http://pompe.test.local {" in conf
+        assert "192.168.1.10:8080" in conf
+        # Un service protégé passe par le contrôle forward_auth
+        assert "forward_auth" in conf
+        assert "/auth/check" in conf
 
-        config = _build_config([device])
-        routes = config["apps"]["http"]["servers"]["main"]["routes"]
+    def test_config_service_public_sans_forward_auth(self):
+        conf = _build_caddyfile([_mock_device("libre", mode="public")])
+        assert "http://libre.test.local {" in conf
+        # Un service public n'a pas de forward_auth sur sa route
+        bloc = conf.split("http://libre.test.local {", 1)[1]
+        assert "forward_auth" not in bloc
 
-        assert len(routes) == 2
-        device_route = routes[1]
-        assert device_route["match"][0]["host"][0] == "pompe.test.local"
-        assert device_route["handle"][0]["upstreams"][0]["dial"] == "192.168.1.10:8080"
+    def test_config_service_suspendu(self):
+        conf = _build_caddyfile([_mock_device("off", mode="suspended")])
+        assert "/device-suspended" in conf
 
     def test_config_avec_plusieurs_equipements(self):
-        devices = []
+        devices = [_mock_device(f"device-{i}", f"192.168.1.{10 + i}") for i in range(5)]
+        conf = _build_caddyfile(devices)
         for i in range(5):
-            d = MagicMock()
-            d.slug = f"device-{i}"
-            d.local_ip = f"192.168.1.{10 + i}"
-            d.local_port = 80
-            devices.append(d)
+            assert f"http://device-{i}.test.local {{" in conf
 
-        config = _build_config(devices)
-        routes = config["apps"]["http"]["servers"]["main"]["routes"]
+    def test_config_https_local(self):
+        conf = _build_caddyfile([_mock_device("proxmox", mode="public", protocol="https")])
+        assert "reverse_proxy https://192.168.1.10:80" in conf
+        assert "tls_insecure_skip_verify" in conf
 
-        # 1 route principale + 5 équipements
-        assert len(routes) == 6
-
-    def test_config_inclut_admin_caddy(self):
-        config = _build_config([])
-        assert "admin" in config
-        assert config["admin"]["listen"] == "0.0.0.0:2019"
-
-    def test_config_ecoute_port_80(self):
-        config = _build_config([])
-        listen = config["apps"]["http"]["servers"]["main"]["listen"]
-        assert ":80" in listen
+    def test_config_active_admin_caddy(self):
+        conf = _build_caddyfile([])
+        assert "admin 0.0.0.0:2019" in conf
 
 
 # ── Tests de la surveillance HTTP ─────────────────────────────────────────────
