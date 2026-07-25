@@ -5,6 +5,7 @@ import logging
 import os
 import time
 from datetime import datetime, timedelta
+from typing import Optional
 
 from fastapi import Request
 from fastapi.responses import JSONResponse, RedirectResponse
@@ -36,36 +37,73 @@ def verify_password(password: str) -> bool:
         return False
 
 
-def make_token() -> str:
+def hash_password(password: str) -> str:
+    """Hash bcrypt d'un mot de passe utilisateur (à stocker en base)."""
+    return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+
+
+def verify_user_password(password: str, password_hash: str) -> bool:
+    if not password_hash:
+        return False
+    try:
+        return bcrypt.checkpw(password.encode(), password_hash.encode())
+    except Exception:
+        return False
+
+
+def make_token(subject: str = None, role: str = "admin") -> str:
+    """Jeton signé HMAC : ``role:subject:timestamp:signature``.
+
+    ``role`` vaut "admin" (session administrateur) ou "user" (utilisateur
+    secondaire à accès limité). ``subject`` est l'identifiant du compte.
+    """
+    subject = subject or ADMIN_USER
     ts = str(int(time.time()))
-    raw = f"{ADMIN_USER}:{ts}"
+    raw = f"{role}:{subject}:{ts}"
     sig = hmac.new(_SECRET, raw.encode(), hashlib.sha256).hexdigest()
     return f"{raw}:{sig}"
 
 
-def verify_token(token: str) -> bool:
+def parse_token(token: str) -> Optional[dict]:
+    """Retourne ``{"role", "subject", "ts"}`` si la signature est valide et le
+    jeton non expiré, sinon ``None``. Accepte aussi l'ancien format
+    ``subject:ts:sig`` (traité comme un jeton administrateur) pour compatibilité."""
     if not token or not _SECRET:
-        return False
+        return None
     try:
         last = token.rfind(":")
         raw, sig = token[:last], token[last + 1:]
-        ts = raw.rsplit(":", 1)[1]
-        if int(time.time()) - int(ts) > SESSION_MAX_AGE:
-            return False
         expected = hmac.new(_SECRET, raw.encode(), hashlib.sha256).hexdigest()
-        return hmac.compare_digest(sig, expected)
+        if not hmac.compare_digest(sig, expected):
+            return None
+        parts = raw.split(":")
+        if len(parts) == 3:
+            role, subject, ts = parts
+        elif len(parts) == 2:  # ancien format admin
+            role, (subject, ts) = "admin", parts
+        else:
+            return None
+        if int(time.time()) - int(ts) > SESSION_MAX_AGE:
+            return None
+        return {"role": role, "subject": subject, "ts": int(ts)}
     except Exception:
-        return False
+        return None
+
+
+def verify_token(token: str) -> bool:
+    """Vrai si le jeton est une session administrateur valide.
+
+    Les jetons "user" (accès limité à des services) ne donnent PAS accès au
+    portail d'administration ni aux API ; ils ne sont acceptés que par le
+    contrôle ``forward_auth`` (voir ``routers/auth.auth_check``)."""
+    principal = parse_token(token)
+    return principal is not None and principal["role"] == "admin"
 
 
 def token_age(token: str) -> int:
     """Returns age in seconds, -1 if invalid."""
-    try:
-        parts = token.rsplit(":", 1)[0]
-        ts = int(parts.rsplit(":", 1)[1])
-        return int(time.time()) - ts
-    except Exception:
-        return -1
+    principal = parse_token(token)
+    return int(time.time()) - principal["ts"] if principal else -1
 
 
 def get_client_ip(request: Request) -> str:
