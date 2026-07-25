@@ -22,17 +22,22 @@ Cloudflare Access est un service Zero Trust qui intercepte les requêtes AVANT q
 - Support SSO / MFA natif
 - Audit logs automatiques
 
-## Alternative : Authentification locale (non implémentée)
+## Authentification locale (implémentée)
 
-Si Cloudflare Access n'est pas disponible :
+Utilisable seule ou en complément de Cloudflare Access :
 
-- Ajout d'un middleware FastAPI avec sessions HTTP
-- Table `users` en base avec hash bcrypt
-- Login via formulaire `/login`
-- Session cookie sécurisé (HttpOnly, SameSite=Strict)
-- Variable d'environnement : `SECRET_KEY`
+- Middleware FastAPI de session (cookie signé HMAC, `HttpOnly`, `Secure`, `SameSite=Lax`)
+- Compte administrateur via l'environnement : `ADMIN_USER` + `ADMIN_PASSWORD_HASH` (bcrypt)
+- Login via formulaire `/auth/login`, déconnexion `/auth/logout`
+- Protection anti-bruteforce (journalisation des tentatives, blocage d'IP progressif)
+- Variable d'environnement : `APP_SECRET_KEY` (signature des sessions)
+- Le jeton porte un **rôle** (`admin` / `user`) ; seul `admin` accède au portail et aux API
 
-**Statut** : non implémentée, voir `docs/open_questions.md`
+**Comptes utilisateurs à accès limité** : l'administrateur peut créer des comptes
+supplémentaires autorisés uniquement pour certains services et jusqu'à une date de
+validité. Voir `docs/features/user-management.md`.
+
+**Statut** : implémentée.
 
 ## Alternative : OAuth Google (non implémentée)
 

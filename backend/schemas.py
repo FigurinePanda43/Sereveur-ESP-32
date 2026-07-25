@@ -1,7 +1,7 @@
 import ipaddress
 import re
 from datetime import datetime
-from typing import Optional
+from typing import List, Optional
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -9,6 +9,10 @@ RESERVED_SLUGS = {"iot", "api", "www", "mail", "ftp", "admin", "root", "docs"}
 SLUG_PATTERN = re.compile(r"^[a-z0-9-]+$")
 
 VALID_DURATIONS = {"15m", "1h", "24h", "48h", "7d"}
+
+# Identifiant d'utilisateur : lettres, chiffres, tiret, underscore, point (pas de ':' pour ne pas
+# casser la sérialisation du token de session).
+USERNAME_PATTERN = re.compile(r"^[a-zA-Z0-9._-]{3,32}$")
 
 
 class DeviceCreate(BaseModel):
@@ -106,3 +110,56 @@ class AccessModeUpdate(BaseModel):
 class LoginRequest(BaseModel):
     username: str
     password: str
+
+
+# ── Gestion des utilisateurs ─────────────────────────────────────────────────
+
+def _validate_username(v: str) -> str:
+    if not USERNAME_PATTERN.match(v):
+        raise ValueError(
+            "L'identifiant doit contenir 3 à 32 caractères (lettres, chiffres, . _ -)"
+        )
+    return v
+
+
+class UserDeviceInfo(BaseModel):
+    id: int
+    slug: str
+    project_name: str
+
+    model_config = {"from_attributes": True}
+
+
+class UserCreate(BaseModel):
+    username: str
+    password: str = Field(..., min_length=6, max_length=128)
+    device_ids: List[int] = Field(default_factory=list)
+    valid_until: Optional[datetime] = None
+    description: str = Field("", max_length=200)
+
+    @field_validator("username")
+    @classmethod
+    def validate_username(cls, v: str) -> str:
+        return _validate_username(v)
+
+
+class UserUpdate(BaseModel):
+    password: Optional[str] = Field(None, min_length=6, max_length=128)
+    device_ids: Optional[List[int]] = None
+    valid_until: Optional[datetime] = None
+    enabled: Optional[bool] = None
+    description: Optional[str] = Field(None, max_length=200)
+
+
+class UserResponse(BaseModel):
+    id: int
+    username: str
+    enabled: bool
+    valid_until: Optional[datetime]
+    expired: bool
+    description: str
+    created_at: datetime
+    last_login: Optional[datetime]
+    devices: List[UserDeviceInfo]
+
+    model_config = {"from_attributes": True}

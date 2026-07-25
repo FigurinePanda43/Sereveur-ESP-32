@@ -450,6 +450,8 @@ async function checkForUpdates() {
     const data = await res.json();
     const available = Boolean(data.update_available);
     updateBadge.hidden = !available;
+    const toolBadge = document.getElementById("tool-update-badge");
+    if (toolBadge) toolBadge.hidden = !available;
     updateBtn.title = available
       ? `Mise à jour disponible (${data.commits_behind} commit${data.commits_behind > 1 ? "s" : ""})`
       : "Mettre à jour depuis GitHub";
@@ -679,6 +681,19 @@ document.getElementById("scan-modal-close").addEventListener("click", closeScan)
 scanBackdrop.addEventListener("click", (e) => { if (e.target === scanBackdrop) closeScan(); });
 scanStartBtn.addEventListener("click", runScan);
 scanSubnet.addEventListener("keydown", (e) => { if (e.key === "Enter") runScan(); });
+
+// ── Navigation (vues) ──────────────────────────────────────────────────────────
+
+function showView(name) {
+  document.querySelectorAll(".view").forEach(v => { v.hidden = v.id !== `view-${name}`; });
+  document.querySelectorAll(".nav-item").forEach(b => b.classList.toggle("active", b.dataset.view === name));
+  if (name === "users" && typeof loadUsers === "function") loadUsers();
+}
+
+document.getElementById("main-nav").addEventListener("click", (e) => {
+  const item = e.target.closest(".nav-item");
+  if (item) showView(item.dataset.view);
+});
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 

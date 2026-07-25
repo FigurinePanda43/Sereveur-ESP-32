@@ -1,4 +1,5 @@
-from sqlalchemy import Boolean, Column, Integer, String, DateTime
+from sqlalchemy import Boolean, Column, ForeignKey, Integer, String, DateTime, UniqueConstraint
+from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from database import Base
 
@@ -23,6 +24,42 @@ class Device(Base):
     access_mode = Column(String, nullable=False, default="protected")
     public_until = Column(DateTime(timezone=True), nullable=True)
     last_access_mode_change = Column(DateTime(timezone=True), nullable=True)
+
+
+class User(Base):
+    """Utilisateur secondaire créé par l'administrateur, avec accès limité
+    à un ou plusieurs services (devices) et une date de validité optionnelle."""
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True)
+    username = Column(String, unique=True, nullable=False, index=True)
+    password_hash = Column(String, nullable=False)
+    enabled = Column(Boolean, nullable=False, default=True)
+    # None = accès sans expiration. Stocké en UTC naïf (cohérent avec datetime.utcnow()).
+    valid_until = Column(DateTime, nullable=True)
+    description = Column(String, default="")
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    last_login = Column(DateTime, nullable=True)
+
+    accesses = relationship(
+        "UserDeviceAccess",
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
+
+
+class UserDeviceAccess(Base):
+    """Association utilisateur ↔ service autorisé."""
+    __tablename__ = "user_device_access"
+    __table_args__ = (UniqueConstraint("user_id", "device_id", name="uq_user_device"),)
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    device_id = Column(Integer, ForeignKey("devices.id", ondelete="CASCADE"), nullable=False, index=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    user = relationship("User", back_populates="accesses")
+    device = relationship("Device")
 
 
 class AuthAttempt(Base):

@@ -21,6 +21,8 @@
     <div class="login-title">Gestionnaire de publication de services locaux</div>
     <div class="login-subtitle">Accès administration</div>
     <div class="login-error" id="login-error" hidden>Identifiant ou mot de passe incorrect.</div>
+    <div class="login-error" id="login-error-expired" hidden>Ce compte a expiré. Contactez l'administrateur.</div>
+    <div class="login-error" id="login-error-disabled" hidden>Ce compte est désactivé. Contactez l'administrateur.</div>
     <form class="login-form" method="POST" action="/auth/login">
       <input type="hidden" name="next" id="next-field" value="/">
       <div class="form-group">
@@ -36,7 +38,10 @@
   </div>
   <script>
     const p = new URLSearchParams(location.search);
-    if (p.get("error")) document.getElementById("login-error").hidden = false;
+    const err = p.get("error");
+    if (err === "expired") document.getElementById("login-error-expired").hidden = false;
+    else if (err === "disabled") document.getElementById("login-error-disabled").hidden = false;
+    else if (err) document.getElementById("login-error").hidden = false;
     if (p.get("next")) document.getElementById("next-field").value = p.get("next");
   </script>
 </body>

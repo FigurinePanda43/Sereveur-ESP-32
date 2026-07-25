@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from database import get_db
-from models import AccessLog, Device
+from models import AccessLog, Device, UserDeviceAccess
 from schemas import AccessModeUpdate, DeviceCreate, DeviceResponse, DeviceUpdate
 from services import caddy, cloudflare, monitor
 
@@ -93,6 +93,7 @@ async def delete_device(device_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Équipement introuvable")
 
     slug = device.slug
+    db.query(UserDeviceAccess).filter(UserDeviceAccess.device_id == device.id).delete()
     db.delete(device)
     db.commit()
 

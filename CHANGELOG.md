@@ -1,5 +1,43 @@
 # CHANGELOG
 
+## [2.1.0] - 2026-07-25
+
+### Fonctionnalité : Gestion des utilisateurs (accès limité par service et par date)
+
+**Fichiers créés :**
+- `backend/routers/users.py` — API CRUD des utilisateurs (`/api/users/`)
+- `frontend/js/users.js` — Interface de gestion des utilisateurs
+- `backend/tests/test_users.py` — Tests (schémas, CRUD, contrôle d'accès, cascade)
+- `backend/tests/conftest.py` — Rend `pytest tests/` exécutable en local et en conteneur
+- `docs/features/user-management.md` — Documentation de la fonctionnalité
+
+**Fichiers modifiés :**
+- `backend/models.py` — Nouveaux modèles `User` et `UserDeviceAccess`
+- `backend/schemas.py` — Schémas `UserCreate`, `UserUpdate`, `UserResponse`
+- `backend/auth.py` — Jetons de session avec rôle (`admin`/`user`), `parse_token`, hash de mot de passe utilisateur
+- `backend/routers/auth.py` — Connexion des utilisateurs + contrôle `forward_auth` par service/validité
+- `backend/routers/devices.py` — Suppression en cascade des accès lors de la suppression d'un service
+- `backend/main.py` — Enregistrement du routeur utilisateurs
+- `frontend/index.html` — Navigation par onglets (Équipements / Utilisateurs / Outils) + fenêtres utilisateurs
+- `frontend/js/app.js` — Routage des vues
+- `frontend/css/style.css` — Styles navigation, outils, cartes utilisateurs
+- `frontend/login.html` — Messages d'erreur « compte expiré / désactivé »
+- `backend/tests/test_devices.py` — Mise à jour de la suite existante (format Caddyfile
+  texte au lieu de l'ancienne config JSON, authentification des appels API, tests des
+  modes d'accès)
+
+**Impact :** Un utilisateur créé par l'administrateur accède uniquement aux services
+qui lui sont attribués (mode Protégé), jusqu'à sa date de validité (ou sans limite).
+
+**Risque :** Faible à modéré. Le format du jeton de session évolue ; les sessions
+administrateur existantes restent valides (compatibilité ascendante gérée par
+`parse_token`).
+
+**Instructions de migration :** Aucune. Les tables `users` et `user_device_access`
+sont créées automatiquement au démarrage. Aucune nouvelle variable d'environnement.
+
+---
+
 ## [1.1.0] - 2026-06-13
 
 ### Fonctionnalité : Scripts, tests, guides de configuration
