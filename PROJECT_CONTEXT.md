@@ -20,9 +20,17 @@ Internet
   → Cloudflare (DNS / WAF / protection DDoS)
   → Cloudflare Tunnel (cloudflared, pas d'ouverture de port)
   → Caddy (reverse proxy, port 80 interne Docker)
-  → FastAPI backend (port 8000, interne Docker) pour iot.DOMAIN
-  → ESP32 local (IP:port) pour slug.DOMAIN
+      • iot.DOMAIN            → FastAPI backend (port 8000) = portail admin
+      • slug.DOMAIN (protégé) → forward_auth /auth/check (backend) puis ESP32 local
+      • slug.DOMAIN (public)  → ESP32 local (IP:port) directement
+      • slug.DOMAIN (suspendu)→ page « service suspendu » (backend)
 ```
+
+Le portail `iot.DOMAIN` et les API `/api/*` sont protégés par un middleware de
+session (cookie signé HMAC). Pour les services en mode **protégé**, Caddy délègue
+l'autorisation au backend via `forward_auth` → `/auth/check`, qui accepte
+l'administrateur ainsi que les **utilisateurs** autorisés pour ce service et non
+expirés (voir `docs/features/user-management.md`).
 
 ### Conteneurs Docker
 

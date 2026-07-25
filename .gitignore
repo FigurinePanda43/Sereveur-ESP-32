@@ -11,6 +11,9 @@ __pycache__/
 *.pyo
 .pytest_cache/
 
+# Lien symbolique frontend créé par les tests (voir backend/tests/conftest.py)
+/backend/frontend
+
 # macOS
 .DS_Store
 

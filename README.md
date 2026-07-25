@@ -132,18 +132,26 @@ L'équipement est accessible en moins de 30 secondes via `https://slug.DOMAIN`.
 │   ├── requirements.txt
 │   ├── main.py              # Point d'entrée FastAPI
 │   ├── database.py          # Connexion SQLite / SQLAlchemy
-│   ├── models.py            # Modèle SQLAlchemy Device
+│   ├── models.py            # Modèles SQLAlchemy (Device, User, accès, logs)
 │   ├── schemas.py           # Schémas Pydantic
+│   ├── auth.py              # Sessions signées, rôles, anti-bruteforce
 │   ├── routers/
-│   │   └── devices.py       # Routes CRUD équipements
+│   │   ├── auth.py          # Connexion + forward_auth (/auth/check)
+│   │   ├── devices.py       # Routes CRUD équipements + modes d'accès
+│   │   ├── users.py         # Routes CRUD utilisateurs
+│   │   └── system.py        # Scan réseau, terminal, mise à jour
 │   └── services/
 │       ├── cloudflare.py    # API Cloudflare DNS
 │       ├── caddy.py         # API admin Caddy
-│       └── monitor.py       # Surveillance périodique
-├── frontend/                # Interface web (HTML/CSS/JS vanilla)
-│   ├── index.html
+│       ├── monitor.py       # Surveillance périodique
+│       └── access_expiry.py # Expiration des accès publics temporaires
+├── frontend/                # Interface web en onglets (HTML/CSS/JS vanilla)
+│   ├── index.html           # Onglets Équipements / Utilisateurs / Outils
+│   ├── login.html
 │   ├── css/style.css
-│   └── js/app.js
+│   └── js/
+│       ├── app.js           # Équipements, modes, outils, navigation
+│       └── users.js         # Gestion des utilisateurs
 ├── caddy/
 │   └── Caddyfile            # Config minimale (admin API activée)
 ├── cloudflared/
@@ -213,9 +221,15 @@ docker compose run --rm backend pytest tests/ -v
 | Ajout d'un équipement             | Création, slug doublon, URL publique              |
 | Modification d'un équipement      | Description, IP, valeurs invalides                |
 | Suppression d'un équipement       | Suppression réelle, 404 si introuvable            |
-| Génération config Caddy           | Structure JSON, routes, admin API                 |
+| Génération config Caddy           | Routes protégé/public/suspendu, HTTPS local, admin API |
 | Surveillance HTTP (online)        | Réponse 200 → statut "online"                     |
 | Surveillance HTTP (offline)       | ConnectError, Timeout → statut "offline"          |
+| Modes d'accès                     | Public temporaire, retour protégé, durée requise  |
+| Protection des API                | Refus 401 sans session administrateur             |
+| Utilisateurs — schémas            | Identifiant, mot de passe, caractères interdits   |
+| Utilisateurs — CRUD               | Création, doublon, identifiant admin réservé      |
+| Contrôle d'accès forward_auth     | Autorisé / refusé / expiré / admin / non authentifié |
+| Cascade suppression               | Suppression d'un service → retrait des accès      |
 
 ---
 
