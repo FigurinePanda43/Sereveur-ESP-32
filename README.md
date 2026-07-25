@@ -21,6 +21,8 @@ Aucun port ne doit être ouvert sur la box internet. Aucune configuration manuel
 - Création automatique du DNS Cloudflare (CNAME vers tunnel)
 - Configuration automatique du reverse proxy (Caddy admin API)
 - Surveillance périodique du statut de chaque équipement (online / slow / offline)
+- Modes d'accès par service : protégé, public temporaire, public permanent, suspendu
+- Gestion des utilisateurs : comptes à accès limité par service et par date de validité
 - Architecture extensible (MQTT, Home Assistant, Grafana, OTA...)
 
 ---
@@ -175,6 +177,10 @@ L'équipement est accessible en moins de 30 secondes via `https://slug.DOMAIN`.
 | PUT     | `/api/devices/{id}`         | Modifie un équipement                |
 | DELETE  | `/api/devices/{id}`         | Supprime un équipement               |
 | POST    | `/api/devices/{id}/refresh` | Force la vérification du statut      |
+| GET     | `/api/users/`               | Liste les utilisateurs               |
+| POST    | `/api/users/`               | Crée un utilisateur                  |
+| PUT     | `/api/users/{id}`           | Modifie un utilisateur               |
+| DELETE  | `/api/users/{id}`           | Supprime un utilisateur              |
 | GET     | `/api/health`               | Statut de l'API                      |
 
 Documentation interactive : `https://iot.DOMAIN/docs`
