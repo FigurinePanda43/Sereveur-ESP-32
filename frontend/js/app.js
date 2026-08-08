@@ -7,6 +7,7 @@ let deleteTarget = null;
 let modeTarget = null;
 let refreshTimer = null;
 let updateCheckTimer = null;
+let revealedDeviceIds = new Set();
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -129,10 +130,10 @@ function exposureNotice(d) {
 }
 
 function cardClass(d) {
-  if (d.access_mode === "suspended") return "card reveal card--muted";
-  if (d.access_mode === "public_temporary") return "card reveal card--warn";
-  if (d.access_mode === "public") return "card reveal card--alert";
-  return "card reveal";
+  if (d.access_mode === "suspended") return "card card--muted";
+  if (d.access_mode === "public_temporary") return "card card--warn";
+  if (d.access_mode === "public") return "card card--alert";
+  return "card";
 }
 
 function renderCard(d) {
@@ -208,12 +209,20 @@ function renderAll() {
   }
   empty.hidden = true;
 
-  const cards = devices.map(d => {
+  // Le rafraîchissement automatique reconstruit la grille toutes les 30 s.
+  // Seules les cartes réellement nouvelles s'animent : rejouer la cascade à
+  // chaque sondage transformerait le tableau de bord en clignotant.
+  const fresh = [];
+  devices.forEach(d => {
     const card = renderCard(d);
+    if (!revealedDeviceIds.has(d.id)) {
+      card.classList.add("reveal");
+      fresh.push(card);
+    }
     grid.appendChild(card);
-    return card;
   });
-  Motion.revealSequence(cards);
+  revealedDeviceIds = new Set(devices.map(d => d.id));
+  Motion.revealSequence(fresh);
 }
 
 function updateStats() {

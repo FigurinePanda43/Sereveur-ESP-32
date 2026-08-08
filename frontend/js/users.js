@@ -6,6 +6,7 @@ const USERS_API = "/api/users";
 
 let users = [];
 let userDeleteTarget = null;
+let revealedUserIds = new Set();
 
 // ── Helpers dates ───────────────────────────────────────────────────────────
 
@@ -47,7 +48,7 @@ function userServicesHtml(u) {
 function renderUserCard(u) {
   const card = document.createElement("article");
   const inactive = !u.enabled || u.expired;
-  card.className = "card reveal" + (inactive ? " card--muted" : "");
+  card.className = "card" + (inactive ? " card--muted" : "");
   card.dataset.id = u.id;
 
   const validity = u.valid_until
@@ -103,12 +104,19 @@ function renderUsers() {
   }
   empty.hidden = true;
 
-  const cards = users.map((u) => {
+  // Comme pour les équipements : seules les cartes nouvelles s'animent, sinon
+  // chaque retour sur l'onglet rejouerait la cascade.
+  const fresh = [];
+  users.forEach((u) => {
     const card = renderUserCard(u);
+    if (!revealedUserIds.has(u.id)) {
+      card.classList.add("reveal");
+      fresh.push(card);
+    }
     list.appendChild(card);
-    return card;
   });
-  Motion.revealSequence(cards);
+  revealedUserIds = new Set(users.map((u) => u.id));
+  Motion.revealSequence(fresh);
 }
 
 async function loadUsers() {

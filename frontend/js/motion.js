@@ -538,13 +538,15 @@
       { passive: true }
     );
 
+    // S'éloigner rétracte le retour visuel ; revenir le rétablit. L'appui reste
+    // annulable jusqu'au relâchement, dans les deux sens.
     document.addEventListener(
       "pointermove",
       (event) => {
         if (!pressed || !origin) return;
         const dx = event.clientX - origin.x;
         const dy = event.clientY - origin.y;
-        if (Math.hypot(dx, dy) > CANCEL_DISTANCE) clear();
+        pressed.classList.toggle("is-pressed", Math.hypot(dx, dy) <= CANCEL_DISTANCE);
       },
       { passive: true }
     );
