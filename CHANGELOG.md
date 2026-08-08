@@ -1,5 +1,44 @@
 # CHANGELOG
 
+## [2.2.0] - 2026-08-08
+
+### Refonte de l'interface web selon les principes de design d'Apple
+
+**Fichiers créés :**
+- `frontend/js/motion.js` — Moteur d'interaction : solveur de ressort analytique
+  paramétré en (amortissement, réponse), présentation des feuilles modales avec
+  glisser-pour-fermer, projection d'élan, résistance élastique, contrôle segmenté
+  à pouce glissant, menus ancrés, gestion du thème
+
+**Fichiers modifiés :**
+- `frontend/css/style.css` — Système visuel reconstruit : palette système claire et
+  sombre, matériaux translucides (`backdrop-filter`), typographie à tracking et
+  interlignage variables selon la taille, espacements en `rem`, prise en charge de
+  `prefers-reduced-motion`, `prefers-reduced-transparency` et `prefers-contrast`
+- `frontend/index.html` — Structure revue : barre translucide, contrôle segmenté,
+  feuilles modales, listes d'options pour les modes d'accès, rangées d'outils
+- `frontend/login.html` — Même système visuel, thème clair/sombre
+- `frontend/js/app.js` — Cartes redessinées (action principale + menu d'actions
+  secondaires), feuilles animées par ressort, notification à ressort, sélecteur
+  d'apparence, révélation séquencée des cartes
+- `frontend/js/users.js` — Mêmes cartes et feuilles pour les utilisateurs
+- `backend/routers/auth.py` — Pages autonomes « service suspendu » et « accès refusé »
+  regroupées dans un gabarit commun, au même système visuel
+
+**Impact :** Aucun changement fonctionnel ni d'API. Toutes les fonctionnalités
+existantes sont conservées à l'identique (équipements, utilisateurs, modes d'accès,
+scan réseau, terminal, mise à jour). L'interface s'adapte désormais au thème clair
+ou sombre du système, avec un sélecteur manuel, et respecte les préférences
+d'accessibilité du système d'exploitation.
+
+**Risque :** Faible. Modifications limitées au frontend et à deux pages HTML
+statiques du backend. Les identifiants DOM et les appels API sont inchangés.
+
+**Instructions de migration :** Aucune. Vider le cache du navigateur si l'ancienne
+feuille de style persiste (les URL sont versionnées : `style.css?v=20`).
+
+---
+
 ## [2.1.0] - 2026-07-25
 
 ### Fonctionnalité : Gestion des utilisateurs (accès limité par service et par date)
