@@ -2,307 +2,412 @@
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Gestionnaire de publication de services locaux</title>
-  <link rel="stylesheet" href="/css/style.css?v=12">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="color-scheme" content="light dark">
+  <title>Services locaux</title>
+  <link rel="stylesheet" href="/css/style.css?v=20">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css">
+  <script>
+    // Appliqué avant le premier rendu : aucun flash de thème au chargement.
+    (function () {
+      try {
+        var t = localStorage.getItem("sereveur-theme");
+        if (t === "light" || t === "dark") document.documentElement.setAttribute("data-theme", t);
+      } catch (e) {}
+    })();
+  </script>
 </head>
 <body>
 
-  <header class="header">
-    <div class="header-inner">
-      <div class="header-brand">
-        <span class="header-icon">⚡</span>
-        <span class="header-title">Gestionnaire de publication de services locaux</span>
+  <!-- ── Chrome : couche translucide, le contenu défile dessous ───────────── -->
+  <header class="chrome" id="chrome">
+    <div class="chrome-bar">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true">⚡</span>
+        <span class="brand-title">Services locaux</span>
       </div>
-      <div class="header-actions">
-        <a href="/auth/logout" class="btn btn-ghost btn-icon-only" title="Déconnexion">⏻</a>
+      <div class="chrome-actions">
+        <button class="icon-btn" id="btn-theme" type="button" aria-label="Changer l'apparence" title="Apparence : système">◐</button>
+        <a href="/auth/logout" class="icon-btn" title="Se déconnecter" aria-label="Se déconnecter">⏻</a>
       </div>
     </div>
-    <nav class="nav" id="main-nav">
-      <button class="nav-item active" data-view="devices">📊 Équipements</button>
-      <button class="nav-item" data-view="users">👤 Utilisateurs</button>
-      <button class="nav-item" data-view="tools">
-        🛠 Outils
-        <span class="update-badge" id="update-badge" hidden></span>
-      </button>
-    </nav>
+
+    <div class="segmented-wrap">
+      <div class="segmented" id="main-nav" role="tablist" aria-label="Sections">
+        <span class="seg-thumb" aria-hidden="true"></span>
+        <button class="seg-item is-active" role="tab" aria-selected="true" data-view="devices" type="button">
+          <span class="seg-glyph" aria-hidden="true">◉</span>Équipements
+        </button>
+        <button class="seg-item" role="tab" aria-selected="false" tabindex="-1" data-view="users" type="button">
+          <span class="seg-glyph" aria-hidden="true">◍</span>Utilisateurs
+        </button>
+        <button class="seg-item" role="tab" aria-selected="false" tabindex="-1" data-view="tools" type="button">
+          <span class="seg-glyph" aria-hidden="true">⚙</span>Outils
+          <span class="dot-badge" id="update-badge" hidden></span>
+        </button>
+      </div>
+    </div>
   </header>
 
-  <main class="main">
+  <main class="page">
 
-    <!-- ── Vue Équipements ─────────────────────────────────────────────── -->
-    <section class="view" id="view-devices">
-      <div class="stats-bar" id="stats-bar">
-        <div class="stat">
-          <span class="stat-value" id="stat-total">—</span>
-          <span class="stat-label">Total</span>
+    <!-- ── Équipements ───────────────────────────────────────────────────── -->
+    <section class="view" id="view-devices" role="tabpanel" aria-label="Équipements">
+      <div class="summary" id="stats-bar">
+        <div class="summary-tile tile-total">
+          <span class="summary-value" id="stat-total">—</span>
+          <span class="summary-label">Total</span>
         </div>
-        <div class="stat">
-          <span class="stat-value stat-online" id="stat-online">—</span>
-          <span class="stat-label">En ligne</span>
+        <div class="summary-tile tile-online">
+          <span class="summary-value" id="stat-online">—</span>
+          <span class="summary-label">En ligne</span>
         </div>
-        <div class="stat">
-          <span class="stat-value stat-slow" id="stat-slow">—</span>
-          <span class="stat-label">Lents</span>
+        <div class="summary-tile tile-slow">
+          <span class="summary-value" id="stat-slow">—</span>
+          <span class="summary-label">Lents</span>
         </div>
-        <div class="stat">
-          <span class="stat-value stat-offline" id="stat-offline">—</span>
-          <span class="stat-label">Hors ligne</span>
+        <div class="summary-tile tile-offline">
+          <span class="summary-value" id="stat-offline">—</span>
+          <span class="summary-label">Hors ligne</span>
         </div>
-        <div class="stat">
-          <span class="stat-value stat-suspended" id="stat-suspended">—</span>
-          <span class="stat-label">Suspendus</span>
+        <div class="summary-tile tile-suspended">
+          <span class="summary-value" id="stat-suspended">—</span>
+          <span class="summary-label">Suspendus</span>
         </div>
       </div>
 
-      <div class="view-toolbar">
-        <h2 class="view-title">Équipements</h2>
-        <button class="btn btn-primary" id="btn-add">
-          <span class="btn-icon">+</span>
-          <span class="btn-label">Ajouter un équipement</span>
+      <div class="view-head">
+        <div class="view-head-text">
+          <h1 class="t-large-title">Équipements</h1>
+          <p class="t-footnote">Chaque équipement local publié sous son propre sous-domaine.</p>
+        </div>
+        <button class="btn btn-primary btn-lg" id="btn-add" type="button">
+          <span class="btn-glyph" aria-hidden="true">+</span>
+          <span class="btn-label">Ajouter</span>
         </button>
       </div>
 
-      <div class="device-grid" id="device-grid">
-        <div class="empty-state" id="empty-state" hidden>
-          <p>Aucun équipement enregistré.</p>
-          <button class="btn btn-primary" id="btn-add-empty">Ajouter le premier équipement</button>
+      <div class="card-grid" id="device-grid">
+        <div class="empty" id="empty-state" hidden>
+          <span class="empty-glyph" aria-hidden="true">◎</span>
+          <span class="empty-title">Aucun équipement</span>
+          <p class="empty-text">Publiez votre premier service local : le DNS et le proxy sont configurés automatiquement.</p>
+          <button class="btn btn-primary btn-lg" id="btn-add-empty" type="button">Ajouter un équipement</button>
         </div>
       </div>
     </section>
 
-    <!-- ── Vue Utilisateurs ────────────────────────────────────────────── -->
-    <section class="view" id="view-users" hidden>
-      <div class="view-toolbar">
-        <h2 class="view-title">Utilisateurs</h2>
-        <button class="btn btn-primary" id="btn-add-user">
-          <span class="btn-icon">+</span>
-          <span class="btn-label">Ajouter un utilisateur</span>
+    <!-- ── Utilisateurs ──────────────────────────────────────────────────── -->
+    <section class="view" id="view-users" role="tabpanel" aria-label="Utilisateurs" hidden>
+      <div class="view-head">
+        <div class="view-head-text">
+          <h1 class="t-large-title">Utilisateurs</h1>
+          <p class="t-footnote">
+            Un utilisateur accède uniquement aux services que vous lui attribuez, en mode protégé,
+            jusqu'à sa date de validité.
+          </p>
+        </div>
+        <button class="btn btn-primary btn-lg" id="btn-add-user" type="button">
+          <span class="btn-glyph" aria-hidden="true">+</span>
+          <span class="btn-label">Ajouter</span>
         </button>
       </div>
 
-      <p class="view-hint">
-        Un utilisateur peut se connecter avec son identifiant et son mot de passe pour accéder
-        uniquement aux services qui lui sont attribués, en mode <strong>🔒 Protégé</strong>,
-        jusqu'à sa date de validité (ou sans limite de date).
-      </p>
-
-      <div class="user-list" id="user-list">
-        <div class="empty-state" id="user-empty-state" hidden>
-          <p>Aucun utilisateur créé.</p>
-          <button class="btn btn-primary" id="btn-add-user-empty">Créer le premier utilisateur</button>
+      <div class="card-grid" id="user-list">
+        <div class="empty" id="user-empty-state" hidden>
+          <span class="empty-glyph" aria-hidden="true">◍</span>
+          <span class="empty-title">Aucun utilisateur</span>
+          <p class="empty-text">Créez un compte pour donner un accès limité à certains services, sans partager vos identifiants d'administration.</p>
+          <button class="btn btn-primary btn-lg" id="btn-add-user-empty" type="button">Créer un utilisateur</button>
         </div>
       </div>
     </section>
 
-    <!-- ── Vue Outils ──────────────────────────────────────────────────── -->
-    <section class="view" id="view-tools" hidden>
-      <div class="view-toolbar">
-        <h2 class="view-title">Outils</h2>
+    <!-- ── Outils ────────────────────────────────────────────────────────── -->
+    <section class="view" id="view-tools" role="tabpanel" aria-label="Outils" hidden>
+      <div class="view-head">
+        <div class="view-head-text">
+          <h1 class="t-large-title">Outils</h1>
+          <p class="t-footnote">Opérations sur le serveur et le réseau local.</p>
+        </div>
       </div>
-      <div class="tools-grid">
-        <button class="tool-card" id="btn-scan">
-          <span class="tool-icon">📡</span>
-          <span class="tool-name">Scanner le réseau local</span>
-          <span class="tool-desc">Découvrir les interfaces web sur votre réseau et les ajouter en un clic.</span>
+
+      <div class="tool-list">
+        <button class="tool-row" id="btn-scan" type="button">
+          <span class="tool-icon tool-icon--scan" aria-hidden="true">◈</span>
+          <span class="tool-text">
+            <span class="tool-name">Scanner le réseau local</span>
+            <span class="tool-desc">Découvrir les interfaces web et les ajouter en un geste.</span>
+          </span>
+          <span class="tool-chevron" aria-hidden="true">›</span>
         </button>
-        <button class="tool-card" id="btn-terminal">
-          <span class="tool-icon">⌨</span>
-          <span class="tool-name">Terminal serveur</span>
-          <span class="tool-desc">Ouvrir un terminal root interactif sur la machine hôte.</span>
+        <button class="tool-row" id="btn-terminal" type="button">
+          <span class="tool-icon tool-icon--terminal" aria-hidden="true">▤</span>
+          <span class="tool-text">
+            <span class="tool-name">Terminal serveur</span>
+            <span class="tool-desc">Ouvrir un terminal root interactif sur la machine hôte.</span>
+          </span>
+          <span class="tool-chevron" aria-hidden="true">›</span>
         </button>
-        <button class="tool-card" id="btn-update">
-          <span class="tool-icon">⬆</span>
-          <span class="tool-name">Mise à jour du serveur</span>
-          <span class="tool-desc">Récupérer la dernière version depuis GitHub et redémarrer.</span>
-          <span class="tool-update-badge" id="tool-update-badge" hidden>Mise à jour disponible</span>
+        <button class="tool-row" id="btn-update" type="button">
+          <span class="tool-icon tool-icon--update" aria-hidden="true">↑</span>
+          <span class="tool-text">
+            <span class="tool-name">Mise à jour du serveur</span>
+            <span class="tool-desc">Récupérer la dernière version depuis GitHub et redémarrer.</span>
+          </span>
+          <span class="tool-flag" id="tool-update-badge" hidden>Disponible</span>
+          <span class="tool-chevron" aria-hidden="true">›</span>
         </button>
       </div>
     </section>
 
   </main>
 
-  <!-- Modal add/edit device -->
-  <div class="modal-backdrop" id="modal-backdrop" hidden>
-    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
-      <div class="modal-header">
-        <h2 class="modal-title" id="modal-title">Ajouter un équipement</h2>
-        <button class="modal-close" id="modal-close" aria-label="Fermer">&times;</button>
+  <!-- ── Feuille : ajout / modification d'équipement ───────────────────────── -->
+  <div class="scrim" id="modal-backdrop" hidden>
+    <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+      <span class="sheet-handle" aria-hidden="true"></span>
+      <div class="sheet-header">
+        <h2 class="sheet-title" id="modal-title">Ajouter un équipement</h2>
+        <button class="sheet-close" id="modal-close" type="button" aria-label="Fermer">✕</button>
       </div>
-      <form id="device-form" novalidate>
+      <form id="device-form" class="sheet-body" novalidate>
         <input type="hidden" id="field-id">
-        <div class="form-group">
-          <label for="field-name">Nom du projet <span class="required">*</span></label>
-          <input type="text" id="field-name" placeholder="ex : Cuve GO Marseille" maxlength="100" required>
+
+        <div class="field">
+          <label for="field-name">Nom du projet <span class="req" aria-hidden="true">*</span></label>
+          <input type="text" id="field-name" placeholder="Cuve GO Marseille" maxlength="100" required>
         </div>
-        <div class="form-group">
-          <label for="field-slug">Sous-domaine <span class="required">*</span></label>
-          <input type="text" id="field-slug" placeholder="ex : cuve-go" pattern="^[a-z0-9-]+$" maxlength="63" required>
-          <span class="field-hint" id="slug-preview"></span>
+
+        <div class="field">
+          <label for="field-slug">Sous-domaine <span class="req" aria-hidden="true">*</span></label>
+          <input type="text" id="field-slug" placeholder="cuve-go" pattern="^[a-z0-9-]+$" maxlength="63" required
+                 autocapitalize="off" autocorrect="off" spellcheck="false">
+          <span class="hint hint-mono" id="slug-preview"></span>
         </div>
-        <div class="form-row">
-          <div class="form-group">
-            <label for="field-ip">IP locale <span class="required">*</span></label>
-            <input type="text" id="field-ip" placeholder="192.168.1.45" required>
+
+        <div class="field-row">
+          <div class="field">
+            <label for="field-ip">IP locale <span class="req" aria-hidden="true">*</span></label>
+            <input type="text" id="field-ip" placeholder="192.168.1.45" inputmode="decimal" required>
           </div>
-          <div class="form-group form-group-sm">
-            <label for="field-port">Port <span class="required">*</span></label>
+          <div class="field field-narrow">
+            <label for="field-port">Port <span class="req" aria-hidden="true">*</span></label>
             <input type="number" id="field-port" value="80" min="1" max="65535" required>
           </div>
         </div>
-        <div class="form-group">
-          <label class="checkbox-label">
-            <input type="checkbox" id="field-https">
-            Connexion locale HTTPS (ex : Proxmox, certificat auto-signé accepté)
+
+        <div class="field">
+          <label class="switch-row" for="field-https">
+            <span class="switch-text">
+              <span>Connexion locale HTTPS</span>
+              <span class="hint">Certificat auto-signé accepté (Proxmox, NAS…).</span>
+            </span>
+            <input type="checkbox" class="switch" id="field-https">
           </label>
         </div>
-        <div class="form-group">
+
+        <div class="field">
           <label for="field-desc">Description</label>
-          <input type="text" id="field-desc" placeholder="Description optionnelle" maxlength="500">
+          <input type="text" id="field-desc" placeholder="Optionnelle" maxlength="500">
         </div>
+
         <div class="form-error" id="form-error" hidden></div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" id="btn-cancel">Annuler</button>
-          <button type="submit" class="btn btn-primary" id="btn-submit">Enregistrer</button>
-        </div>
       </form>
+      <div class="sheet-footer">
+        <button type="button" class="btn btn-secondary" id="btn-cancel">Annuler</button>
+        <button type="submit" class="btn btn-primary" id="btn-submit" form="device-form">Enregistrer</button>
+      </div>
     </div>
   </div>
 
-  <!-- Modal add/edit user -->
-  <div class="modal-backdrop" id="user-modal-backdrop" hidden>
-    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="user-modal-title">
-      <div class="modal-header">
-        <h2 class="modal-title" id="user-modal-title">Ajouter un utilisateur</h2>
-        <button class="modal-close" id="user-modal-close" aria-label="Fermer">&times;</button>
+  <!-- ── Feuille : ajout / modification d'utilisateur ──────────────────────── -->
+  <div class="scrim" id="user-modal-backdrop" hidden>
+    <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="user-modal-title">
+      <span class="sheet-handle" aria-hidden="true"></span>
+      <div class="sheet-header">
+        <h2 class="sheet-title" id="user-modal-title">Ajouter un utilisateur</h2>
+        <button class="sheet-close" id="user-modal-close" type="button" aria-label="Fermer">✕</button>
       </div>
-      <form id="user-form" novalidate>
+      <form id="user-form" class="sheet-body" novalidate>
         <input type="hidden" id="user-field-id">
-        <div class="form-group">
-          <label for="user-field-name">Identifiant <span class="required">*</span></label>
-          <input type="text" id="user-field-name" placeholder="ex : jean.dupont" maxlength="32" required autocomplete="off">
-          <span class="field-hint">3 à 32 caractères : lettres, chiffres, . _ -</span>
+
+        <div class="field">
+          <label for="user-field-name">Identifiant <span class="req" aria-hidden="true">*</span></label>
+          <input type="text" id="user-field-name" placeholder="jean.dupont" maxlength="32" required autocomplete="off"
+                 autocapitalize="off" autocorrect="off" spellcheck="false">
+          <span class="hint">3 à 32 caractères : lettres, chiffres, point, tiret, souligné.</span>
         </div>
-        <div class="form-group">
-          <label for="user-field-password">Mot de passe <span class="required" id="user-password-required">*</span></label>
+
+        <div class="field">
+          <label for="user-field-password">Mot de passe <span class="req" id="user-password-required" aria-hidden="true">*</span></label>
           <input type="password" id="user-field-password" placeholder="6 caractères minimum" minlength="6" autocomplete="new-password">
-          <span class="field-hint" id="user-password-hint"></span>
+          <span class="hint" id="user-password-hint"></span>
         </div>
-        <div class="form-group">
+
+        <div class="field">
           <label>Services autorisés</label>
-          <div class="device-picker" id="user-device-picker">
-            <p class="field-hint">Aucun équipement disponible.</p>
+          <div class="picker" id="user-device-picker">
+            <p class="hint">Aucun équipement disponible.</p>
           </div>
         </div>
-        <div class="form-group">
-          <label class="checkbox-label">
-            <input type="checkbox" id="user-no-expiry" checked>
-            Accès sans limite de date
+
+        <div class="field">
+          <label class="switch-row" for="user-no-expiry">
+            <span class="switch-text">
+              <span>Accès sans limite de date</span>
+              <span class="hint">Sinon, l'accès est refusé au-delà de la date choisie.</span>
+            </span>
+            <input type="checkbox" class="switch" id="user-no-expiry" checked>
           </label>
         </div>
-        <div class="form-group" id="user-expiry-group" hidden>
+
+        <div class="field" id="user-expiry-group" hidden>
           <label for="user-field-expiry">Valable jusqu'au</label>
           <input type="datetime-local" id="user-field-expiry">
-          <span class="field-hint">Au-delà de cette date/heure, l'accès est automatiquement refusé.</span>
         </div>
-        <div class="form-group" id="user-enabled-group" hidden>
-          <label class="checkbox-label">
-            <input type="checkbox" id="user-field-enabled" checked>
-            Compte actif
+
+        <div class="field" id="user-enabled-group" hidden>
+          <label class="switch-row" for="user-field-enabled">
+            <span class="switch-text">
+              <span>Compte actif</span>
+              <span class="hint">Désactiver révoque l'accès sans supprimer le compte.</span>
+            </span>
+            <input type="checkbox" class="switch" id="user-field-enabled" checked>
           </label>
         </div>
+
         <div class="form-error" id="user-form-error" hidden></div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" id="user-btn-cancel">Annuler</button>
-          <button type="submit" class="btn btn-primary" id="user-btn-submit">Enregistrer</button>
-        </div>
       </form>
+      <div class="sheet-footer">
+        <button type="button" class="btn btn-secondary" id="user-btn-cancel">Annuler</button>
+        <button type="submit" class="btn btn-primary" id="user-btn-submit" form="user-form">Enregistrer</button>
+      </div>
     </div>
   </div>
 
-  <!-- Confirm delete device -->
-  <div class="modal-backdrop" id="confirm-backdrop" hidden>
-    <div class="modal modal-sm" role="dialog" aria-modal="true">
-      <div class="modal-header">
-        <h2 class="modal-title">Confirmer la suppression</h2>
+  <!-- ── Feuille : confirmation de suppression d'équipement ────────────────── -->
+  <div class="scrim" id="confirm-backdrop" hidden>
+    <div class="sheet sheet--compact" role="alertdialog" aria-modal="true" aria-labelledby="confirm-title">
+      <span class="sheet-handle" aria-hidden="true"></span>
+      <div class="sheet-header">
+        <h2 class="sheet-title" id="confirm-title">Supprimer cet équipement ?</h2>
       </div>
-      <p id="confirm-text" class="confirm-text"></p>
-      <div class="modal-footer">
+      <div class="sheet-body">
+        <p class="lede" id="confirm-text"></p>
+      </div>
+      <div class="sheet-footer">
         <button type="button" class="btn btn-secondary" id="confirm-cancel">Annuler</button>
         <button type="button" class="btn btn-danger" id="confirm-ok">Supprimer</button>
       </div>
     </div>
   </div>
 
-  <!-- Confirm delete user -->
-  <div class="modal-backdrop" id="user-confirm-backdrop" hidden>
-    <div class="modal modal-sm" role="dialog" aria-modal="true">
-      <div class="modal-header">
-        <h2 class="modal-title">Confirmer la suppression</h2>
+  <!-- ── Feuille : confirmation de suppression d'utilisateur ───────────────── -->
+  <div class="scrim" id="user-confirm-backdrop" hidden>
+    <div class="sheet sheet--compact" role="alertdialog" aria-modal="true" aria-labelledby="user-confirm-title">
+      <span class="sheet-handle" aria-hidden="true"></span>
+      <div class="sheet-header">
+        <h2 class="sheet-title" id="user-confirm-title">Supprimer cet utilisateur ?</h2>
       </div>
-      <p id="user-confirm-text" class="confirm-text"></p>
-      <div class="modal-footer">
+      <div class="sheet-body">
+        <p class="lede" id="user-confirm-text"></p>
+      </div>
+      <div class="sheet-footer">
         <button type="button" class="btn btn-secondary" id="user-confirm-cancel">Annuler</button>
         <button type="button" class="btn btn-danger" id="user-confirm-ok">Supprimer</button>
       </div>
     </div>
   </div>
 
-  <!-- Modal changement de mode -->
-  <div class="modal-backdrop" id="mode-backdrop" hidden>
-    <div class="modal modal-sm" role="dialog" aria-modal="true">
-      <div class="modal-header">
-        <h2 class="modal-title" id="mode-modal-title">Mode d'accès</h2>
-        <button class="modal-close" id="mode-modal-close">&times;</button>
+  <!-- ── Feuille : mode d'accès ────────────────────────────────────────────── -->
+  <div class="scrim" id="mode-backdrop" hidden>
+    <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="mode-modal-title">
+      <span class="sheet-handle" aria-hidden="true"></span>
+      <div class="sheet-header">
+        <h2 class="sheet-title" id="mode-modal-title">Mode d'accès</h2>
+        <button class="sheet-close" id="mode-modal-close" type="button" aria-label="Fermer">✕</button>
       </div>
-      <div style="padding:16px 24px;">
-        <p id="mode-device-name" style="font-weight:600;margin-bottom:16px;"></p>
-        <div class="mode-actions">
-          <button class="btn btn-secondary mode-btn" data-mode="suspended" style="width:100%;margin-bottom:8px;">⏸ Suspendre</button>
-          <button class="btn btn-secondary mode-btn" data-mode="protected" style="width:100%;margin-bottom:4px;">🔒 Protégé (authentification requise)</button>
-          <p style="color:var(--text-muted);font-size:12px;margin-bottom:16px;">En mode protégé, l'administrateur et les utilisateurs autorisés (onglet Utilisateurs) peuvent accéder au service.</p>
-          <p style="color:var(--text-muted);font-size:12px;margin-bottom:8px;">Accès public temporaire :</p>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">
-            <button class="btn btn-ghost mode-btn" data-mode="public_temporary" data-duration="15m">15 min</button>
-            <button class="btn btn-ghost mode-btn" data-mode="public_temporary" data-duration="1h">1 heure</button>
-            <button class="btn btn-ghost mode-btn" data-mode="public_temporary" data-duration="24h">24 heures</button>
-            <button class="btn btn-ghost mode-btn" data-mode="public_temporary" data-duration="48h">48 heures</button>
-            <button class="btn btn-ghost mode-btn" data-mode="public_temporary" data-duration="7d" style="grid-column:span 2;">1 semaine</button>
-          </div>
-          <p style="color:var(--text-muted);font-size:12px;margin-bottom:8px;">Accès public permanent :</p>
-          <button class="btn mode-btn btn-public-perm" data-mode="public" style="width:100%;margin-bottom:4px;">🌐 Public permanent (sans expiration)</button>
-          <button class="btn btn-primary mode-btn" data-mode="protected" id="btn-close-public" hidden style="width:100%;margin-top:12px;">↩ Refermer maintenant</button>
+      <div class="sheet-body">
+        <p class="lede" id="mode-device-name"></p>
+
+        <p class="section-label" style="margin-top:1rem;">Accès contrôlé</p>
+        <div class="option-group">
+          <button class="option-row mode-btn" data-mode="protected" type="button">
+            <span class="option-glyph option-glyph--blue" aria-hidden="true">🔒</span>
+            <span class="option-text">
+              <span class="option-name">Protégé</span>
+              <span class="option-sub">L'administrateur et les utilisateurs autorisés peuvent entrer.</span>
+            </span>
+            <span class="option-check" aria-hidden="true">✓</span>
+          </button>
+          <button class="option-row mode-btn" data-mode="suspended" type="button">
+            <span class="option-glyph option-glyph--gray" aria-hidden="true">⏸</span>
+            <span class="option-text">
+              <span class="option-name">Suspendu</span>
+              <span class="option-sub">Le service répond une page d'indisponibilité.</span>
+            </span>
+            <span class="option-check" aria-hidden="true">✓</span>
+          </button>
         </div>
+
+        <p class="section-label" style="margin-top:1.25rem;">Ouverture temporaire</p>
+        <p class="hint" style="margin-bottom:0.625rem;">Accessible sans authentification, puis refermé automatiquement.</p>
+        <div class="duration-grid">
+          <button class="btn btn-secondary mode-btn" data-mode="public_temporary" data-duration="15m" type="button">15 min</button>
+          <button class="btn btn-secondary mode-btn" data-mode="public_temporary" data-duration="1h" type="button">1 heure</button>
+          <button class="btn btn-secondary mode-btn" data-mode="public_temporary" data-duration="24h" type="button">24 heures</button>
+          <button class="btn btn-secondary mode-btn" data-mode="public_temporary" data-duration="48h" type="button">48 heures</button>
+          <button class="btn btn-secondary mode-btn" data-mode="public_temporary" data-duration="7d" type="button">1 semaine</button>
+        </div>
+
+        <p class="section-label" style="margin-top:1.25rem;">Ouverture permanente</p>
+        <div class="option-group">
+          <button class="option-row mode-btn" data-mode="public" type="button">
+            <span class="option-glyph option-glyph--red" aria-hidden="true">🌐</span>
+            <span class="option-text">
+              <span class="option-name">Public permanent</span>
+              <span class="option-sub">Sans authentification et sans expiration. À réserver aux services sans donnée sensible.</span>
+            </span>
+            <span class="option-check" aria-hidden="true">✓</span>
+          </button>
+        </div>
+
+        <button class="btn btn-primary btn-block btn-lg mode-btn" data-mode="protected" id="btn-close-public" type="button" hidden
+                style="margin-top:1rem;">
+          ↩ Refermer maintenant
+        </button>
       </div>
-      <div class="modal-footer" style="justify-content:flex-start;">
-        <button type="button" class="btn btn-secondary" id="mode-cancel">Annuler</button>
+      <div class="sheet-footer">
+        <button type="button" class="btn btn-secondary" id="mode-cancel">Fermer</button>
       </div>
     </div>
   </div>
 
-  <!-- Modal mise à jour -->
-  <div class="modal-backdrop" id="update-backdrop" hidden>
-    <div class="modal" role="dialog" aria-modal="true" style="max-width:600px;">
-      <div class="modal-header">
-        <h2 class="modal-title">Mise à jour du serveur</h2>
-        <button class="modal-close" id="update-modal-close">&times;</button>
+  <!-- ── Feuille : mise à jour ─────────────────────────────────────────────── -->
+  <div class="scrim" id="update-backdrop" hidden>
+    <div class="sheet sheet--wide" role="dialog" aria-modal="true" aria-labelledby="update-title">
+      <span class="sheet-handle" aria-hidden="true"></span>
+      <div class="sheet-header">
+        <h2 class="sheet-title" id="update-title">Mise à jour du serveur</h2>
+        <button class="sheet-close" id="update-modal-close" type="button" aria-label="Fermer">✕</button>
       </div>
-      <div style="padding:16px 24px 0;">
-        <pre id="update-output" class="update-output">En attente…</pre>
+      <div class="sheet-body">
+        <pre id="update-output" class="console">En attente…</pre>
       </div>
-      <div class="modal-footer">
+      <div class="sheet-footer">
         <button type="button" class="btn btn-secondary" id="update-close-btn" disabled>Fermer</button>
       </div>
     </div>
   </div>
 
-  <!-- Modal terminal serveur -->
-  <div class="modal-backdrop" id="terminal-backdrop" hidden>
-    <div class="modal modal-terminal" role="dialog" aria-modal="true">
-      <div class="modal-header">
-        <h2 class="modal-title">Terminal serveur</h2>
-        <button class="modal-close" id="terminal-modal-close">&times;</button>
+  <!-- ── Feuille : terminal ────────────────────────────────────────────────── -->
+  <div class="scrim" id="terminal-backdrop" hidden>
+    <div class="sheet sheet--terminal" role="dialog" aria-modal="true" aria-labelledby="terminal-title">
+      <span class="sheet-handle" aria-hidden="true"></span>
+      <div class="sheet-header">
+        <h2 class="sheet-title" id="terminal-title">Terminal serveur</h2>
+        <button class="sheet-close" id="terminal-modal-close" type="button" aria-label="Fermer">✕</button>
       </div>
       <div class="terminal-wrap">
         <div id="terminal-el"></div>
@@ -310,27 +415,31 @@
     </div>
   </div>
 
-  <!-- Modal scan réseau -->
-  <div class="modal-backdrop" id="scan-backdrop" hidden>
-    <div class="modal modal-scan" role="dialog" aria-modal="true">
-      <div class="modal-header">
-        <h2 class="modal-title">Scanner le réseau local</h2>
-        <button class="modal-close" id="scan-modal-close">&times;</button>
+  <!-- ── Feuille : scan réseau ─────────────────────────────────────────────── -->
+  <div class="scrim" id="scan-backdrop" hidden>
+    <div class="sheet sheet--scan" role="dialog" aria-modal="true" aria-labelledby="scan-title">
+      <span class="sheet-handle" aria-hidden="true"></span>
+      <div class="sheet-header">
+        <h2 class="sheet-title" id="scan-title">Scanner le réseau local</h2>
+        <button class="sheet-close" id="scan-modal-close" type="button" aria-label="Fermer">✕</button>
       </div>
-      <div class="scan-body">
+      <div class="sheet-body">
         <div class="scan-controls">
-          <div class="form-group" style="flex:1;margin-bottom:0;">
+          <div class="field">
             <label for="scan-subnet">Plage réseau (CIDR)</label>
-            <input type="text" id="scan-subnet" placeholder="192.168.1.0/24" value="192.168.1.0/24">
+            <input type="text" id="scan-subnet" placeholder="192.168.1.0/24" value="192.168.1.0/24"
+                   autocapitalize="off" autocorrect="off" spellcheck="false">
           </div>
-          <button class="btn btn-primary" id="scan-start-btn">Scanner</button>
+          <button class="btn btn-primary btn-lg" id="scan-start-btn" type="button">Scanner</button>
         </div>
-        <div class="scan-progress" id="scan-progress" hidden>
-          <div class="scan-progress-bar"><div class="scan-progress-fill" id="scan-progress-fill"></div></div>
-          <span class="scan-progress-text" id="scan-progress-text">—</span>
+
+        <div class="progress" id="scan-progress" hidden>
+          <div class="progress-track"><div class="progress-fill" id="scan-progress-fill"></div></div>
+          <span class="progress-text" id="scan-progress-text">—</span>
         </div>
+
         <div class="scan-results" id="scan-results">
-          <p class="scan-hint">Lance un scan pour découvrir les interfaces web sur ton réseau. Chaque résultat peut être ajouté en un clic.</p>
+          <p class="scan-empty">Lancez un scan pour découvrir les interfaces web de votre réseau. Chaque résultat s'ajoute en un geste.</p>
         </div>
       </div>
     </div>
@@ -340,7 +449,8 @@
 
   <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.js"></script>
-  <script src="/js/app.js?v=5"></script>
-  <script src="/js/users.js?v=1"></script>
+  <script src="/js/motion.js?v=1"></script>
+  <script src="/js/app.js?v=10"></script>
+  <script src="/js/users.js?v=3"></script>
 </body>
 </html>
