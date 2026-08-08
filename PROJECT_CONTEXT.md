@@ -87,6 +87,45 @@ Au démarrage du backend et à chaque modification d'équipement :
 À chaque suppression :
 - Recherche de l'enregistrement DNS et suppression via API Cloudflare
 
+### Frontend
+
+Servi statiquement par FastAPI (`app.mount("/", StaticFiles(directory="frontend"))`).
+Aucune étape de build, aucune dépendance npm.
+
+| Fichier              | Rôle                                                              |
+|----------------------|-------------------------------------------------------------------|
+| `index.html`         | Portail : barre translucide, contrôle segmenté, 3 vues, feuilles  |
+| `login.html`         | Page de connexion                                                  |
+| `css/style.css`      | Système visuel complet (jetons, thèmes, composants, accessibilité) |
+| `js/motion.js`       | Moteur d'interaction (ressorts, feuilles, gestes, menus, thème)    |
+| `js/app.js`          | Équipements, outils, navigation, notifications                     |
+| `js/users.js`        | Utilisateurs secondaires                                           |
+
+Le système visuel suit les principes de design d'Apple :
+
+- **Ressorts plutôt que durées.** `motion.js` résout analytiquement un ressort
+  paramétré en *amortissement* (dépassement) et *réponse* (rapidité, en secondes),
+  et non en masse/raideur/frottement. Toute animation repart de la valeur affichée
+  et de la vélocité en cours : elle est interruptible et réversible sans saut.
+- **Gestes 1:1.** Les feuilles modales suivent le doigt exactement, résistent
+  progressivement au-delà de leur position de repos, et décident de se fermer
+  d'après le point d'arrêt *projeté* par l'élan (`v/1000 · d/(1−d)`, d = 0.998),
+  pas d'après la position au relâchement.
+- **Matériaux et profondeur.** Barre, menus et notifications sont des couches
+  translucides (`backdrop-filter`) sous lesquelles le contenu défile ; la
+  séparation n'apparaît que lorsqu'elles recouvrent réellement du contenu.
+- **Typographie.** Police système, tracking et interlignage définis par taille
+  (négatif sur les grands titres, neutre sur le corps), espacements en `rem` pour
+  suivre la taille de texte choisie par l'utilisateur.
+- **Accessibilité.** `prefers-reduced-motion` (translations et rebonds remplacés
+  par des fondus), `prefers-reduced-transparency` (matériaux opaques),
+  `prefers-contrast` (bordures franches), focus visible, piège de focus dans les
+  feuilles, statut jamais porté par la couleur seule.
+
+Thème clair/sombre automatique (`prefers-color-scheme`), avec sélecteur manuel
+persisté dans `localStorage` sous la clé `sereveur-theme` et appliqué avant le
+premier rendu pour éviter tout flash.
+
 ### Surveillance des équipements
 
 Tâche asyncio en arrière-plan (`monitor.py`) :
@@ -106,6 +145,7 @@ Tâche asyncio en arrière-plan (`monitor.py`) :
 | Caddy admin API JSON             | Reconfiguration dynamique sans rechargement de fichier     |
 | `POST /load` Caddy               | Remplacement atomique de toute la config, plus fiable      |
 | Vanilla JS (pas de framework)    | Simplicité, pas de dépendances de build                    |
+| Ressorts en JS (`motion.js`)     | Animations interruptibles et sensibles à la vélocité, impossibles avec des transitions CSS |
 | Python 3.12                      | Version LTS récente, support asyncio complet               |
 | cloudflared via token d'env      | Méthode moderne, pas de fichier de config à gérer          |
 | Slugs réservés (iot, api, www…)  | Éviter les conflits avec le portail principal              |
@@ -142,6 +182,8 @@ Tâche asyncio en arrière-plan (`monitor.py`) :
 - [x] Authentification locale (login/mot de passe admin, protection anti-bruteforce)
 - [x] Gestion des utilisateurs à accès limité (par service + date de validité)
 - [x] Interface en onglets (Équipements / Utilisateurs / Outils)
+- [x] Refonte de l'interface selon les principes de design d'Apple (thème clair/sombre,
+      matériaux translucides, animations à ressorts interruptibles, accessibilité)
 
 ---
 
@@ -205,3 +247,6 @@ Aucune.
 | 2026-07-25 | Gestion des utilisateurs : accès limité par service + date de validité, rôles dans le jeton |
 | 2026-07-25 | Jeton de session enrichi d'un rôle (`admin`/`user`), compat. ascendante via `parse_token`   |
 | 2026-07-25 | Interface réorganisée en onglets (Équipements / Utilisateurs / Outils) pour désencombrer    |
+| 2026-08-08 | Refonte de l'interface selon les principes de design d'Apple, sans dépendance ni build      |
+| 2026-08-08 | Moteur de ressorts maison (`motion.js`) plutôt qu'une bibliothèque : ~40 lignes utiles, zéro dépendance |
+| 2026-08-08 | Actions secondaires des cartes déplacées dans un menu ancré : chemin courant visible d'abord |

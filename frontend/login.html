@@ -2,47 +2,60 @@
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Connexion — Gestionnaire de publication de services locaux</title>
-  <link rel="stylesheet" href="/css/style.css?v=4">
-  <style>
-    body { display: flex; align-items: center; justify-content: center; min-height: 100vh; }
-    .login-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 40px; width: 100%; max-width: 360px; box-shadow: var(--shadow); }
-    .login-title { font-size: 22px; font-weight: 700; text-align: center; margin-bottom: 8px; }
-    .login-subtitle { color: var(--text-muted); font-size: 13px; text-align: center; margin-bottom: 28px; }
-    .login-error { background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.3); border-radius: 6px; color: var(--offline); font-size: 13px; padding: 10px 14px; margin-bottom: 16px; text-align: center; }
-    .login-form .form-group { margin-bottom: 16px; }
-    .login-form .btn { width: 100%; padding: 10px; font-size: 15px; margin-top: 8px; }
-  </style>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="color-scheme" content="light dark">
+  <title>Connexion — Services locaux</title>
+  <link rel="stylesheet" href="/css/style.css?v=20">
+  <script>
+    (function () {
+      try {
+        var t = localStorage.getItem("sereveur-theme");
+        if (t === "light" || t === "dark") document.documentElement.setAttribute("data-theme", t);
+      } catch (e) {}
+    })();
+  </script>
 </head>
-<body>
-  <div class="login-card">
-    <div style="text-align:center;font-size:36px;margin-bottom:12px;">⚡</div>
-    <div class="login-title">Gestionnaire de publication de services locaux</div>
-    <div class="login-subtitle">Accès administration</div>
-    <div class="login-error" id="login-error" hidden>Identifiant ou mot de passe incorrect.</div>
-    <div class="login-error" id="login-error-expired" hidden>Ce compte a expiré. Contactez l'administrateur.</div>
-    <div class="login-error" id="login-error-disabled" hidden>Ce compte est désactivé. Contactez l'administrateur.</div>
+<body class="login-page">
+  <main class="login-card">
+    <div class="login-mark" aria-hidden="true">⚡</div>
+    <h1 class="login-title">Services locaux</h1>
+    <p class="login-sub">Connectez-vous pour administrer vos équipements.</p>
+
+    <div class="login-error" id="login-error" hidden>
+      <span aria-hidden="true">⚠</span><span>Identifiant ou mot de passe incorrect.</span>
+    </div>
+    <div class="login-error" id="login-error-expired" hidden>
+      <span aria-hidden="true">⌛</span><span>Ce compte a expiré. Contactez l'administrateur.</span>
+    </div>
+    <div class="login-error" id="login-error-disabled" hidden>
+      <span aria-hidden="true">⏸</span><span>Ce compte est désactivé. Contactez l'administrateur.</span>
+    </div>
+
     <form class="login-form" method="POST" action="/auth/login">
       <input type="hidden" name="next" id="next-field" value="/">
-      <div class="form-group">
+      <div class="field">
         <label for="username">Identifiant</label>
-        <input type="text" id="username" name="username" autocomplete="username" required autofocus>
+        <input type="text" id="username" name="username" autocomplete="username" required autofocus
+               autocapitalize="off" autocorrect="off" spellcheck="false">
       </div>
-      <div class="form-group">
+      <div class="field">
         <label for="password">Mot de passe</label>
         <input type="password" id="password" name="password" autocomplete="current-password" required>
       </div>
-      <button type="submit" class="btn btn-primary">Se connecter</button>
+      <button type="submit" class="btn btn-primary btn-lg btn-block">Se connecter</button>
     </form>
-  </div>
+  </main>
+
+  <script src="/js/motion.js?v=1"></script>
   <script>
-    const p = new URLSearchParams(location.search);
-    const err = p.get("error");
+    const params = new URLSearchParams(location.search);
+    const err = params.get("error");
     if (err === "expired") document.getElementById("login-error-expired").hidden = false;
     else if (err === "disabled") document.getElementById("login-error-disabled").hidden = false;
     else if (err) document.getElementById("login-error").hidden = false;
-    if (p.get("next")) document.getElementById("next-field").value = p.get("next");
+    if (params.get("next")) document.getElementById("next-field").value = params.get("next");
+
+    Motion.installPressFeedback();
   </script>
 </body>
 </html>
