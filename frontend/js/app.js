@@ -24,13 +24,41 @@ function formatDate(iso) {
   });
 }
 
+// ── Notification éphémère ─────────────────────────────────────────────────────
+
+// Le bandeau monte sur un ressort et redescend sur le même chemin : ce qui
+// arrive par le bas repart par le bas.
+const toastEl = document.getElementById("toast");
+const toastSpring = new Motion.SpringValue(0, {
+  damping: 0.85,
+  response: 0.4,
+  precision: 0.002,
+  onUpdate: (t) => {
+    toastEl.style.opacity = Math.min(1, t * 1.4).toFixed(3);
+    toastEl.style.transform = `translate3d(-50%, ${((1 - t) * 24).toFixed(2)}px, 0) scale(${(0.96 + 0.04 * t).toFixed(4)})`;
+  },
+});
+
 function showToast(msg, type = "success") {
-  const t = document.getElementById("toast");
-  t.textContent = msg;
-  t.className = `toast ${type}`;
-  t.hidden = false;
-  clearTimeout(t._timer);
-  t._timer = setTimeout(() => { t.hidden = true; }, 3500);
+  const glyph = type === "error" ? "⚠" : "✓";
+  toastEl.className = `toast ${type}`;
+  toastEl.innerHTML = `<span class="toast-glyph" aria-hidden="true">${glyph}</span><span class="toast-text">${esc(msg)}</span>`;
+  toastEl.setAttribute("role", type === "error" ? "alert" : "status");
+
+  if (toastEl.hidden) {
+    toastEl.hidden = false;
+    toastSpring.set(0);
+  }
+  toastSpring.to(1);
+
+  clearTimeout(toastEl._timer);
+  toastEl._timer = setTimeout(() => {
+    toastSpring.to(0, {
+      damping: 1,
+      response: 0.3,
+      onRest: () => { toastEl.hidden = true; },
+    });
+  }, 3500);
 }
 
 // ── API calls ─────────────────────────────────────────────────────────────────
@@ -58,83 +86,108 @@ function statusLabel(status) {
   return { online: "En ligne", slow: "Lent", offline: "Hors ligne", unknown: "Inconnu" }[status] ?? status;
 }
 
-function modeBadge(d) {
-  const labels = { suspended: "⏸ Suspendu", protected: "🔒 Protégé", public_temporary: "🌐 Public temporaire", public: "🌐 Public permanent" };
-  const classes = { suspended: "badge-suspended", protected: "badge-protected", public_temporary: "badge-public", public: "badge-public-perm" };
-  return `<span class="mode-badge ${classes[d.access_mode] || ''}">${labels[d.access_mode] || esc(d.access_mode)}</span>`;
+const MODE_LABELS = {
+  suspended: "Suspendu",
+  protected: "Protégé",
+  public_temporary: "Public temporaire",
+  public: "Public permanent",
+};
+
+const MODE_CHIPS = {
+  suspended: "chip-suspended",
+  protected: "chip-protected",
+  public_temporary: "chip-public",
+  public: "chip-public-perm",
+};
+
+const MODE_GLYPHS = {
+  suspended: "⏸",
+  protected: "🔒",
+  public_temporary: "🌐",
+  public: "🌐",
+};
+
+function modeChip(d) {
+  // Un service suspendu affiche déjà « Suspendu » comme statut : répéter
+  // l'information dans une étiquette n'ajoute rien.
+  if (d.access_mode === "suspended") return "";
+  const label = MODE_LABELS[d.access_mode] || d.access_mode;
+  const glyph = MODE_GLYPHS[d.access_mode] || "";
+  return `<span class="chip ${MODE_CHIPS[d.access_mode] || "chip-neutral"}">${glyph} ${esc(label)}</span>`;
 }
 
-function publicWarning(d) {
+function exposureNotice(d) {
   if (d.access_mode === "public") {
-    return `<div class="public-warning public-warning--perm">⚠ Accessible sans authentification (permanent)</div>`;
+    return `<div class="notice notice--alert"><span aria-hidden="true">⚠</span><span>Accessible sans authentification, sans expiration.</span></div>`;
   }
   if (d.access_mode !== "public_temporary" || !d.public_until) return "";
   const until = new Date(d.public_until).toLocaleString("fr-FR", {
     day: "2-digit", month: "2-digit", year: "numeric",
     hour: "2-digit", minute: "2-digit",
   });
-  return `<div class="public-warning">⚠ Accessible sans authentification jusqu'au ${until}</div>`;
+  return `<div class="notice"><span aria-hidden="true">⚠</span><span>Accessible sans authentification jusqu'au ${esc(until)}.</span></div>`;
 }
 
 function cardClass(d) {
-  if (d.access_mode === "suspended") return "device-card device-card--suspended";
-  if (d.access_mode === "public_temporary") return "device-card device-card--public";
-  if (d.access_mode === "public") return "device-card device-card--public-perm";
-  return "device-card";
+  if (d.access_mode === "suspended") return "card reveal card--muted";
+  if (d.access_mode === "public_temporary") return "card reveal card--warn";
+  if (d.access_mode === "public") return "card reveal card--alert";
+  return "card reveal";
 }
 
 function renderCard(d) {
-  const card = document.createElement("div");
+  const card = document.createElement("article");
   card.className = cardClass(d);
   card.dataset.id = d.id;
 
   const isSuspended = d.access_mode === "suspended";
   const sc = isSuspended ? "unknown" : statusClass(d.status);
   const statusText = isSuspended ? "Suspendu" : statusLabel(d.status);
+  const hasLink = Boolean(d.public_url) && !isSuspended;
 
   card.innerHTML = `
-    <div class="card-header">
-      <div style="flex:1;min-width:0;">
-        <span class="card-name">${esc(d.project_name)}</span>
-        ${modeBadge(d)}
+    <div class="card-top">
+      <div class="card-heading">
+        <h3 class="card-name">${esc(d.project_name)}</h3>
+        ${d.description ? `<p class="card-desc">${esc(d.description)}</p>` : ""}
+        ${modeChip(d)}
       </div>
-      <span class="status-dot ${sc}" title="${statusText}"></span>
+      <span class="status status-${sc}">
+        <span class="status-dot" aria-hidden="true"></span>${esc(statusText)}
+      </span>
     </div>
-    ${d.description ? `<p class="card-desc">${esc(d.description)}</p>` : ""}
-    ${publicWarning(d)}
-    <div class="card-meta">
-      <div class="card-meta-row">
-        <span class="meta-label">Statut</span>
-        <span class="meta-value">${statusText}</span>
-      </div>
+    ${exposureNotice(d)}
+    <div class="meta">
       ${!isSuspended && ["offline", "slow"].includes(d.status) && d.status_detail ? `
-      <div class="card-meta-row">
-        <span class="meta-label">Détail</span>
-        <span class="meta-value status-detail">${esc(d.status_detail)}</span>
+      <div class="meta-row">
+        <span class="meta-key">Détail</span>
+        <span class="meta-val meta-val--detail">${esc(d.status_detail)}</span>
       </div>` : ""}
-      <div class="card-meta-row">
-        <span class="meta-label">IP locale</span>
-        <span class="meta-value">${esc(d.local_ip)}:${esc(String(d.local_port))}</span>
+      <div class="meta-row">
+        <span class="meta-key">Adresse locale</span>
+        <span class="meta-val t-mono">${esc(d.local_protocol || "http")}://${esc(d.local_ip)}:${esc(String(d.local_port))}</span>
       </div>
-      <div class="card-meta-row">
-        <span class="meta-label">Créé le</span>
-        <span class="meta-value">${formatDate(d.created_at)}</span>
+      <div class="meta-row">
+        <span class="meta-key">Créé le</span>
+        <span class="meta-val">${formatDate(d.created_at)}</span>
       </div>
-      <div class="card-meta-row">
-        <span class="meta-label">Vu le</span>
-        <span class="meta-value">${formatDate(d.last_seen)}</span>
+      <div class="meta-row">
+        <span class="meta-key">Vu le</span>
+        <span class="meta-val">${formatDate(d.last_seen)}</span>
       </div>
     </div>
     ${d.public_url ? `
-    <div class="card-url">
-      <span class="meta-label">URL</span>
+    <div class="card-link">
+      <span aria-hidden="true">🔗</span>
       <a href="${esc(d.public_url)}" target="_blank" rel="noopener">${esc(d.public_url)}</a>
     </div>` : ""}
     <div class="card-actions">
-      <button class="btn btn-ghost btn-mode" data-id="${d.id}">🔧 Mode</button>
-      <button class="btn btn-ghost btn-refresh" data-id="${d.id}" ${isSuspended ? "disabled" : ""}>↻ Tester</button>
-      <button class="btn btn-secondary btn-edit" data-id="${d.id}">Modifier</button>
-      <button class="btn btn-danger btn-delete" data-id="${d.id}">Supprimer</button>
+      ${hasLink
+        ? `<a class="btn btn-tinted" href="${esc(d.public_url)}" target="_blank" rel="noopener">Ouvrir ↗</a>`
+        : `<button class="btn btn-secondary btn-refresh" data-id="${d.id}" type="button" ${isSuspended ? "disabled" : ""}>Tester</button>`}
+      <button class="btn btn-secondary btn-mode" data-id="${d.id}" type="button">Mode</button>
+      <button class="btn btn-secondary btn-more" data-id="${d.id}" type="button"
+              aria-label="Plus d'actions" aria-haspopup="menu" aria-expanded="false">•••</button>
     </div>
   `;
   return card;
@@ -144,9 +197,9 @@ function renderAll() {
   const grid = document.getElementById("device-grid");
   const empty = document.getElementById("empty-state");
 
-  // Keep empty-state in DOM, remove cards only
+  // On conserve l'état vide dans le DOM, on ne retire que les cartes.
   Array.from(grid.children).forEach(el => {
-    if (!el.classList.contains("empty-state")) el.remove();
+    if (!el.classList.contains("empty")) el.remove();
   });
 
   if (devices.length === 0) {
@@ -154,7 +207,13 @@ function renderAll() {
     return;
   }
   empty.hidden = true;
-  devices.forEach(d => grid.appendChild(renderCard(d)));
+
+  const cards = devices.map(d => {
+    const card = renderCard(d);
+    grid.appendChild(card);
+    return card;
+  });
+  Motion.revealSequence(cards);
 }
 
 function updateStats() {
@@ -185,7 +244,7 @@ function startAutoRefresh() {
   refreshTimer = setInterval(loadDevices, REFRESH_INTERVAL);
 }
 
-// ── Modal add/edit ─────────────────────────────────────────────────────────────
+// ── Feuille ajout/modification ────────────────────────────────────────────────
 
 const modal         = document.getElementById("modal-backdrop");
 const modalTitle    = document.getElementById("modal-title");
@@ -225,12 +284,11 @@ function openModal(device = null) {
     fieldHttps.checked = false;
   }
 
-  modal.hidden = false;
-  fieldName.focus();
+  Motion.presentSheet(modal, { focus: "#field-name" });
 }
 
 function closeModal() {
-  modal.hidden = true;
+  Motion.dismissSheet(modal);
   fieldSlug.disabled = false;
 }
 
@@ -254,7 +312,7 @@ function openModalPrefill(svc) {
 
 function updateSlugPreview() {
   const slug = fieldSlug.value.trim();
-  slugPreview.textContent = slug ? `→ https://${slug}.iot.votre-domaine.com` : "";
+  slugPreview.textContent = slug ? `https://${slug}.iot.votre-domaine.com` : "";
 }
 
 function showFormError(msg) {
@@ -301,19 +359,20 @@ form.addEventListener("submit", async (e) => {
   }
 });
 
-// ── Delete confirm ────────────────────────────────────────────────────────────
+// ── Confirmation de suppression ───────────────────────────────────────────────
 
 const confirmBackdrop = document.getElementById("confirm-backdrop");
 const confirmText     = document.getElementById("confirm-text");
 
 function openConfirm(device) {
   deleteTarget = device;
-  confirmText.textContent = `Supprimer « ${device.project_name} » ? Cette action supprimera aussi l'enregistrement DNS Cloudflare.`;
-  confirmBackdrop.hidden = false;
+  confirmText.textContent =
+    `« ${device.project_name} » sera retiré du proxy et son enregistrement DNS Cloudflare supprimé. L'équipement lui-même n'est pas modifié.`;
+  Motion.presentSheet(confirmBackdrop, { focus: "#confirm-cancel" });
 }
 
 function closeConfirm() {
-  confirmBackdrop.hidden = true;
+  Motion.dismissSheet(confirmBackdrop);
   deleteTarget = null;
 }
 
@@ -333,17 +392,26 @@ document.getElementById("confirm-ok").addEventListener("click", async () => {
   }
 });
 
-// ── Mode modal ────────────────────────────────────────────────────────────────
+// ── Feuille mode d'accès ──────────────────────────────────────────────────────
+
+const modeBackdrop = document.getElementById("mode-backdrop");
 
 function openModeModal(device) {
   modeTarget = device;
   document.getElementById("mode-device-name").textContent = device.project_name;
-  document.getElementById("btn-close-public").hidden = !["public_temporary", "public"].includes(device.access_mode);
-  document.getElementById("mode-backdrop").hidden = false;
+  document.getElementById("btn-close-public").hidden =
+    !["public_temporary", "public"].includes(device.access_mode);
+
+  // Le mode courant porte une coche : on voit où l'on est avant de choisir.
+  modeBackdrop.querySelectorAll(".option-row.mode-btn").forEach(row => {
+    row.classList.toggle("is-current", row.dataset.mode === device.access_mode && !row.dataset.duration);
+  });
+
+  Motion.presentSheet(modeBackdrop, { focus: "#mode-cancel" });
 }
 
 function closeModeModal() {
-  document.getElementById("mode-backdrop").hidden = true;
+  Motion.dismissSheet(modeBackdrop);
   modeTarget = null;
 }
 
@@ -358,18 +426,18 @@ document.querySelectorAll(".mode-btn").forEach(btn => {
     const payload = { access_mode: mode };
     if (duration) payload.duration = duration;
 
+    const target = modeTarget;
     btn.disabled = true;
     try {
-      const updated = await apiFetch(`${API}/${modeTarget.id}/access-mode`, {
+      const updated = await apiFetch(`${API}/${target.id}/access-mode`, {
         method: "POST",
         body: JSON.stringify(payload),
       });
-      devices = devices.map(d => d.id === modeTarget.id ? updated : d);
+      devices = devices.map(d => d.id === target.id ? updated : d);
       renderAll();
       updateStats();
       closeModeModal();
-      const labels = { suspended: "suspendu", protected: "protégé", public_temporary: "public temporaire", public: "public permanent" };
-      showToast(`${updated.project_name} → ${labels[mode] || mode}`);
+      showToast(`${updated.project_name} → ${(MODE_LABELS[mode] || mode).toLowerCase()}`);
     } catch (err) {
       showToast(err.message, "error");
     } finally {
@@ -378,9 +446,27 @@ document.querySelectorAll(".mode-btn").forEach(btn => {
   });
 });
 
-// ── Event delegation ──────────────────────────────────────────────────────────
+// ── Test de connexion ─────────────────────────────────────────────────────────
 
-document.getElementById("device-grid").addEventListener("click", async (e) => {
+async function testDevice(id) {
+  const card = document.querySelector(`.card[data-id="${id}"]`);
+  // Le retour commence à l'instant du clic, pas à l'arrivée de la réponse.
+  if (card) card.classList.add("is-testing");
+  try {
+    const updated = await apiFetch(`${API}/${id}/refresh`, { method: "POST" });
+    devices = devices.map(d => d.id === id ? updated : d);
+    renderAll();
+    updateStats();
+    showToast(`${updated.project_name} — ${statusLabel(updated.status).toLowerCase()}`);
+  } catch (err) {
+    showToast(err.message, "error");
+    if (card) card.classList.remove("is-testing");
+  }
+}
+
+// ── Délégation d'événements sur les cartes ────────────────────────────────────
+
+document.getElementById("device-grid").addEventListener("click", (e) => {
   const btn = e.target.closest("button");
   if (!btn) return;
 
@@ -390,52 +476,44 @@ document.getElementById("device-grid").addEventListener("click", async (e) => {
 
   if (btn.classList.contains("btn-mode")) {
     openModeModal(device);
-  } else if (btn.classList.contains("btn-edit")) {
-    openModal(device);
-  } else if (btn.classList.contains("btn-delete")) {
-    openConfirm(device);
   } else if (btn.classList.contains("btn-refresh")) {
-    btn.disabled = true;
-    btn.textContent = "…";
-    try {
-      const updated = await apiFetch(`${API}/${id}/refresh`, { method: "POST" });
-      devices = devices.map(d => d.id === id ? updated : d);
-      renderAll();
-      updateStats();
-      showToast(`Statut : ${statusLabel(updated.status)}`);
-    } catch (err) {
-      showToast(err.message, "error");
-    } finally {
-      btn.disabled = false;
-      btn.textContent = "↻ Tester";
+    testDevice(id);
+  } else if (btn.classList.contains("btn-more")) {
+    const isSuspended = device.access_mode === "suspended";
+    const entries = [];
+    // « Tester » n'est proposé ici que s'il n'est pas déjà sur la carte.
+    if (device.public_url && !isSuspended) {
+      entries.push({ label: "Tester la connexion", glyph: "↻", action: () => testDevice(id) });
     }
+    entries.push({ label: "Modifier", glyph: "✎", action: () => openModal(device) });
+    entries.push({ separator: true });
+    entries.push({ label: "Supprimer", glyph: "🗑", danger: true, action: () => openConfirm(device) });
+    Motion.showMenu(btn, entries);
   }
 });
 
-// ── Buttons ───────────────────────────────────────────────────────────────────
+// ── Boutons ───────────────────────────────────────────────────────────────────
 
 document.getElementById("btn-add").addEventListener("click", () => openModal());
 document.getElementById("btn-add-empty").addEventListener("click", () => openModal());
 document.getElementById("modal-close").addEventListener("click", closeModal);
 document.getElementById("btn-cancel").addEventListener("click", closeModal);
 
+// Clic sur le voile = fermeture. Le geste part d'où il tombe.
 modal.addEventListener("click", (e) => { if (e.target === modal) closeModal(); });
 confirmBackdrop.addEventListener("click", (e) => { if (e.target === confirmBackdrop) closeConfirm(); });
-document.getElementById("mode-backdrop").addEventListener("click", (e) => {
-  if (e.target === document.getElementById("mode-backdrop")) closeModeModal();
-});
+modeBackdrop.addEventListener("click", (e) => { if (e.target === modeBackdrop) closeModeModal(); });
 
 fieldSlug.addEventListener("input", updateSlugPreview);
 
 document.addEventListener("keydown", (e) => {
-  if (e.key === "Escape") {
-    if (!modal.hidden) closeModal();
-    if (!confirmBackdrop.hidden) closeConfirm();
-    if (!document.getElementById("mode-backdrop").hidden) closeModeModal();
-  }
+  if (e.key !== "Escape") return;
+  if (Motion.isSheetOpen(modal)) closeModal();
+  if (Motion.isSheetOpen(confirmBackdrop)) closeConfirm();
+  if (Motion.isSheetOpen(modeBackdrop)) closeModeModal();
 });
 
-// ── Update modal ──────────────────────────────────────────────────────────────
+// ── Mise à jour ───────────────────────────────────────────────────────────────
 
 const updateBackdrop = document.getElementById("update-backdrop");
 const updateOutput   = document.getElementById("update-output");
@@ -469,8 +547,8 @@ function startUpdateCheck() {
 updateBtn.addEventListener("click", async () => {
   updateOutput.textContent = "";
   updateCloseBtn.disabled = true;
-  updateBackdrop.hidden = false;
   updateBadge.hidden = true;
+  Motion.presentSheet(updateBackdrop, { focus: false });
 
   try {
     const res = await fetch("/api/system/update", {
@@ -494,10 +572,14 @@ updateBtn.addEventListener("click", async () => {
   updateCloseBtn.disabled = false;
 });
 
-document.getElementById("update-modal-close").addEventListener("click", () => {
-  if (!updateCloseBtn.disabled) updateBackdrop.hidden = true;
-});
-updateCloseBtn.addEventListener("click", () => { updateBackdrop.hidden = true; });
+function closeUpdate() {
+  if (updateCloseBtn.disabled) return;
+  Motion.dismissSheet(updateBackdrop);
+}
+
+document.getElementById("update-modal-close").addEventListener("click", closeUpdate);
+updateCloseBtn.addEventListener("click", () => Motion.dismissSheet(updateBackdrop));
+updateBackdrop.addEventListener("click", (e) => { if (e.target === updateBackdrop) closeUpdate(); });
 
 // ── Terminal ──────────────────────────────────────────────────────────────────
 
@@ -531,10 +613,10 @@ function sendResize() {
 }
 
 function openTerminal() {
-  terminalBackdrop.hidden = false;
+  Motion.presentSheet(terminalBackdrop, { focus: false });
 
   if (!term) {
-    term = new Terminal({ cursorBlink: true, fontSize: 13, theme: { background: "#0a0c12" } });
+    term = new Terminal({ cursorBlink: true, fontSize: 13, theme: { background: "#0b0b0d" } });
     termFit = new FitAddon.FitAddon();
     term.loadAddon(termFit);
     term.open(document.getElementById("terminal-el"));
@@ -546,11 +628,12 @@ function openTerminal() {
   }
 
   connectTerminalSocket();
-  setTimeout(() => { termFit.fit(); sendResize(); }, 50);
+  // On attend la fin de la mise en place de la feuille pour mesurer.
+  setTimeout(() => { termFit.fit(); sendResize(); term.focus(); }, 220);
 }
 
 function closeTerminal() {
-  terminalBackdrop.hidden = true;
+  Motion.dismissSheet(terminalBackdrop);
   if (termSocket) { termSocket.close(); termSocket = null; }
 }
 
@@ -558,7 +641,7 @@ document.getElementById("btn-terminal").addEventListener("click", openTerminal);
 document.getElementById("terminal-modal-close").addEventListener("click", closeTerminal);
 terminalBackdrop.addEventListener("click", (e) => { if (e.target === terminalBackdrop) closeTerminal(); });
 window.addEventListener("resize", () => {
-  if (!terminalBackdrop.hidden && termFit) { termFit.fit(); sendResize(); }
+  if (Motion.isSheetOpen(terminalBackdrop) && termFit) { termFit.fit(); sendResize(); }
 });
 
 // ── Scan réseau ───────────────────────────────────────────────────────────────
@@ -583,33 +666,34 @@ function guessSubnet() {
 }
 
 function openScan() {
-  scanBackdrop.hidden = false;
   scanSubnet.value = guessSubnet();
+  Motion.presentSheet(scanBackdrop, { focus: "#scan-subnet" });
 }
 
 function closeScan() {
-  scanBackdrop.hidden = true;
+  Motion.dismissSheet(scanBackdrop);
 }
 
 function addScanItem(svc) {
   const item = document.createElement("div");
-  item.className = "scan-item";
+  item.className = "scan-item reveal";
   const badgeClass = svc.is_web ? (svc.scheme === "https" ? "https" : "") : "raw";
   const badgeText = svc.is_web ? svc.scheme.toUpperCase() : "TCP";
   const label = svc.title || (svc.is_web ? "Interface web" : "Port ouvert (non-HTTP)");
   item.innerHTML = `
-    <span class="scan-item-badge ${badgeClass}">${badgeText}</span>
+    <span class="scan-badge ${badgeClass}">${esc(badgeText)}</span>
     <div class="scan-item-main">
       <div class="scan-item-addr">${esc(svc.ip)}:${esc(String(svc.port))}</div>
-      <div class="scan-item-title">${esc(label)}${svc.status ? ` · HTTP ${svc.status}` : ""}</div>
+      <div class="scan-item-title">${esc(label)}${svc.status ? ` · HTTP ${esc(String(svc.status))}` : ""}</div>
     </div>
-    <button class="btn btn-secondary scan-add-btn">+ Ajouter</button>
+    <button class="btn btn-tinted scan-item-add" type="button">Ajouter</button>
   `;
-  item.querySelector(".scan-add-btn").addEventListener("click", () => {
+  item.querySelector(".scan-item-add").addEventListener("click", () => {
     closeScan();
     openModalPrefill(svc);
   });
   scanResults.appendChild(item);
+  Motion.revealSequence([item]);
 }
 
 async function runScan() {
@@ -665,7 +749,7 @@ async function runScan() {
     }
 
     if (foundCount === 0) {
-      scanResults.innerHTML = `<p class="scan-hint">Aucune interface web trouvée sur cette plage.</p>`;
+      scanResults.innerHTML = `<p class="scan-empty">Aucune interface web trouvée sur cette plage.</p>`;
     }
   } catch (e) {
     showToast("Scan interrompu", "error");
@@ -682,20 +766,49 @@ scanBackdrop.addEventListener("click", (e) => { if (e.target === scanBackdrop) c
 scanStartBtn.addEventListener("click", runScan);
 scanSubnet.addEventListener("keydown", (e) => { if (e.key === "Enter") runScan(); });
 
-// ── Navigation (vues) ──────────────────────────────────────────────────────────
+document.addEventListener("keydown", (e) => {
+  if (e.key !== "Escape") return;
+  if (Motion.isSheetOpen(scanBackdrop)) closeScan();
+  if (Motion.isSheetOpen(terminalBackdrop)) closeTerminal();
+  if (Motion.isSheetOpen(updateBackdrop)) closeUpdate();
+});
+
+// ── Navigation ────────────────────────────────────────────────────────────────
 
 function showView(name) {
   document.querySelectorAll(".view").forEach(v => { v.hidden = v.id !== `view-${name}`; });
-  document.querySelectorAll(".nav-item").forEach(b => b.classList.toggle("active", b.dataset.view === name));
   if (name === "users" && typeof loadUsers === "function") loadUsers();
 }
 
-document.getElementById("main-nav").addEventListener("click", (e) => {
-  const item = e.target.closest(".nav-item");
-  if (item) showView(item.dataset.view);
+const segmented = Motion.installSegmented(
+  document.getElementById("main-nav"),
+  (item) => showView(item.dataset.view)
+);
+
+// ── Apparence ─────────────────────────────────────────────────────────────────
+
+const themeBtn = document.getElementById("btn-theme");
+const THEME_GLYPHS = { auto: "◐", light: "☀", dark: "☾" };
+const THEME_LABELS = { auto: "système", light: "clair", dark: "sombre" };
+
+function paintThemeButton(theme) {
+  themeBtn.textContent = THEME_GLYPHS[theme];
+  themeBtn.title = `Apparence : ${THEME_LABELS[theme]}`;
+  themeBtn.setAttribute("aria-label", `Apparence : ${THEME_LABELS[theme]}. Changer.`);
+}
+
+themeBtn.addEventListener("click", () => {
+  const next = Motion.theme.cycle();
+  paintThemeButton(next);
+  segmented.refresh();
 });
 
 // ── Init ──────────────────────────────────────────────────────────────────────
+
+paintThemeButton(Motion.theme.current());
+Motion.installPressFeedback();
+Motion.installScrollEdge(document.getElementById("chrome"));
+requestAnimationFrame(() => segmented.refresh());
 
 loadDevices();
 startAutoRefresh();

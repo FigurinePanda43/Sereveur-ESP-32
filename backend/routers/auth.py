@@ -110,59 +110,122 @@ async def logout(request: Request, db: Session = Depends(get_db)):
     return response
 
 
-@router.get("/device-suspended", include_in_schema=False)
-async def device_suspended():
-    html = """<!DOCTYPE html>
+# Ces pages sont servies sur les sous-domaines des équipements, où la feuille
+# de style du portail n'est pas accessible : elles doivent rester autonomes.
+# Elles reprennent donc le même système visuel, en ligne et en version réduite.
+_STATE_PAGE = """<!DOCTYPE html>
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Service suspendu</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="color-scheme" content="light dark">
+  <title>__TITLE__</title>
   <style>
-    :root { --bg:#0f1117; --surface:#1a1d27; --border:#2e3250; --text:#e2e8f0; --muted:#8892a4; --unknown:#6b7280; }
-    * { box-sizing:border-box; margin:0; padding:0; }
-    body { background:var(--bg); color:var(--text); font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; min-height:100vh; display:flex; align-items:center; justify-content:center; }
-    .card { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:48px 40px; max-width:420px; width:100%; text-align:center; }
-    .icon { font-size:48px; margin-bottom:20px; }
-    h1 { font-size:22px; font-weight:700; margin-bottom:10px; }
-    p { color:var(--muted); font-size:14px; line-height:1.6; }
-    .badge { display:inline-block; background:rgba(107,114,128,0.2); color:var(--unknown); font-size:12px; font-weight:600; padding:4px 12px; border-radius:20px; margin-bottom:24px; }
+    :root {
+      --bg:#f2f2f7; --card:#fff; --fill:rgba(120,120,128,0.10);
+      --label:#1c1c1e; --label-2:#55555c; --blue:#007aff; --accent:__ACCENT__;
+      --shadow:0 8px 20px rgba(0,0,0,0.10), 0 32px 64px rgba(0,0,0,0.14);
+      color-scheme:light;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg:#000; --card:#1c1c1e; --fill:rgba(120,120,128,0.22);
+        --label:#fff; --label-2:#aeaeb2; --blue:#0a84ff; --accent:__ACCENT_DARK__;
+        --shadow:0 12px 32px rgba(0,0,0,0.55), 0 40px 80px rgba(0,0,0,0.6);
+        color-scheme:dark;
+      }
+    }
+    *,*::before,*::after { box-sizing:border-box; margin:0; padding:0; }
+    body {
+      background:var(--bg); color:var(--label); min-height:100vh;
+      display:flex; align-items:center; justify-content:center; padding:1rem;
+      font:100%/1.5 -apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,system-ui,sans-serif;
+      -webkit-font-smoothing:antialiased;
+    }
+    .card {
+      background:var(--card); border-radius:26px; box-shadow:var(--shadow);
+      padding:2.5rem 1.75rem; max-width:26rem; width:100%; text-align:center;
+      animation:in 520ms cubic-bezier(0.22,0.9,0.28,1) both;
+    }
+    @keyframes in { from { opacity:0; transform:translate3d(0,14px,0) scale(0.97); } to { opacity:1; transform:none; } }
+    .glyph {
+      width:3.25rem; height:3.25rem; margin:0 auto 1.25rem; border-radius:14px;
+      display:grid; place-items:center; font-size:1.5rem;
+      background:color-mix(in srgb, var(--accent) 16%, transparent); color:var(--accent);
+    }
+    .chip {
+      display:inline-block; margin-bottom:1rem; padding:0.1875rem 0.625rem; border-radius:100px;
+      background:color-mix(in srgb, var(--accent) 14%, transparent); color:var(--accent);
+      font-size:0.6875rem; font-weight:620; letter-spacing:0.006em;
+    }
+    h1 { font-size:1.3125rem; font-weight:700; line-height:1.19; letter-spacing:-0.018em; margin-bottom:0.5rem; }
+    p { color:var(--label-2); font-size:0.9375rem; letter-spacing:-0.006em; line-height:1.5; }
+    a {
+      display:inline-block; margin-top:1.5rem; padding:0.5rem 0.9375rem; border-radius:10px;
+      background:var(--fill); color:var(--blue); font-size:0.875rem; font-weight:590; text-decoration:none;
+      transition:transform 110ms cubic-bezier(0.3,0.8,0.4,1);
+    }
+    a:active { transform:scale(0.96); }
+    @media (prefers-reduced-motion: reduce) {
+      .card { animation:none; }
+      a:active { transform:none; }
+    }
   </style>
 </head>
 <body>
   <div class="card">
-    <div class="icon">⏸</div>
-    <span class="badge">Service suspendu</span>
-    <h1>Ce service est temporairement indisponible</h1>
-    <p>L'accès à cet équipement a été suspendu par l'administrateur. Veuillez réessayer ultérieurement ou contacter l'administrateur.</p>
+    <div class="glyph" aria-hidden="true">__GLYPH__</div>
+    <span class="chip">__CHIP__</span>
+    <h1>__HEADING__</h1>
+    <p>__BODY__</p>
+    __LINK__
   </div>
 </body>
 </html>"""
+
+
+def _state_page(*, title, chip, glyph, heading, body, accent, accent_dark, link=""):
+    html = _STATE_PAGE
+    for token, value in (
+        ("__TITLE__", title),
+        ("__CHIP__", chip),
+        ("__GLYPH__", glyph),
+        ("__HEADING__", heading),
+        ("__BODY__", body),
+        ("__ACCENT__", accent),
+        ("__ACCENT_DARK__", accent_dark),
+        ("__LINK__", link),
+    ):
+        html = html.replace(token, value)
+    return html
+
+
+@router.get("/device-suspended", include_in_schema=False)
+async def device_suspended():
+    html = _state_page(
+        title="Service suspendu",
+        chip="Service suspendu",
+        glyph="⏸",
+        heading="Ce service est temporairement indisponible",
+        body="L'accès à cet équipement a été suspendu par l'administrateur. "
+        "Réessayez plus tard ou contactez-le.",
+        accent="#8e8e93",
+        accent_dark="#98989d",
+    )
     return Response(content=html, media_type="text/html", status_code=503)
 
 
-_NO_ACCESS_HTML = """<!DOCTYPE html>
-<html lang="fr"><head><meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Accès refusé</title>
-<style>
-  :root { --bg:#0f1117; --surface:#1a1d27; --border:#2e3250; --text:#e2e8f0; --muted:#8892a4; --danger:#ef4444; }
-  * { box-sizing:border-box; margin:0; padding:0; }
-  body { background:var(--bg); color:var(--text); font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; min-height:100vh; display:flex; align-items:center; justify-content:center; }
-  .card { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:48px 40px; max-width:420px; width:100%; text-align:center; }
-  .icon { font-size:48px; margin-bottom:20px; }
-  h1 { font-size:22px; font-weight:700; margin-bottom:10px; }
-  p { color:var(--muted); font-size:14px; line-height:1.6; }
-  .badge { display:inline-block; background:rgba(239,68,68,0.15); color:var(--danger); font-size:12px; font-weight:600; padding:4px 12px; border-radius:20px; margin-bottom:24px; }
-  a { color:#4f8ef7; font-size:13px; display:inline-block; margin-top:20px; }
-</style></head>
-<body><div class="card">
-  <div class="icon">⛔</div>
-  <span class="badge">Accès refusé</span>
-  <h1>Vous n'avez pas accès à ce service</h1>
-  <p>Votre compte n'est pas autorisé pour ce service, ou son autorisation a expiré. Contactez l'administrateur si vous pensez qu'il s'agit d'une erreur.</p>
-  <a href="__LOGOUT__">Changer de compte</a>
-</div></body></html>"""
+_NO_ACCESS_HTML = _state_page(
+    title="Accès refusé",
+    chip="Accès refusé",
+    glyph="⛔",
+    heading="Vous n'avez pas accès à ce service",
+    body="Votre compte n'est pas autorisé pour ce service, ou son autorisation a expiré. "
+    "Contactez l'administrateur si vous pensez qu'il s'agit d'une erreur.",
+    accent="#ff3b30",
+    accent_dark="#ff453a",
+    link='<a href="__LOGOUT__">Changer de compte</a>',
+)
 
 
 def _user_can_access(db: Session, subject: str, slug: str) -> bool:

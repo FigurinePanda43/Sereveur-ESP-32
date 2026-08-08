@@ -29,56 +29,61 @@ function utcToLocalInput(iso) {
 
 // ── Rendu ────────────────────────────────────────────────────────────────────
 
-function userStatusBadge(u) {
-  if (!u.enabled) return `<span class="mode-badge badge-suspended">Désactivé</span>`;
-  if (u.expired) return `<span class="mode-badge badge-public-perm">Expiré</span>`;
-  return `<span class="mode-badge badge-online">Actif</span>`;
+function userStatusChip(u) {
+  if (!u.enabled) return `<span class="chip chip-suspended">⏸ Désactivé</span>`;
+  if (u.expired) return `<span class="chip chip-public-perm">⌛ Expiré</span>`;
+  return `<span class="chip chip-active">✓ Actif</span>`;
 }
 
 function userServicesHtml(u) {
   if (!u.devices || u.devices.length === 0) {
-    return `<span class="user-chip user-chip--empty">Aucun service</span>`;
+    return `<span class="chip chip-neutral">Aucun service</span>`;
   }
   return u.devices
-    .map((d) => `<span class="user-chip">${esc(d.project_name)}</span>`)
+    .map((d) => `<span class="chip chip-protected">${esc(d.project_name)}</span>`)
     .join("");
 }
 
 function renderUserCard(u) {
-  const card = document.createElement("div");
-  card.className = "user-card" + (u.enabled && !u.expired ? "" : " user-card--inactive");
+  const card = document.createElement("article");
+  const inactive = !u.enabled || u.expired;
+  card.className = "card reveal" + (inactive ? " card--muted" : "");
   card.dataset.id = u.id;
 
   const validity = u.valid_until
-    ? `<span class="${u.expired ? "user-expired" : ""}">Jusqu'au ${formatDateUtc(u.valid_until)}</span>`
+    ? `${u.expired ? "Expiré le" : "Jusqu'au"} ${formatDateUtc(u.valid_until)}`
     : "Sans limite de date";
 
   card.innerHTML = `
-    <div class="card-header">
-      <div style="flex:1;min-width:0;">
-        <span class="card-name">${esc(u.username)}</span>
-        ${userStatusBadge(u)}
+    <div class="card-top">
+      <div class="card-heading">
+        <h3 class="card-name">${esc(u.username)}</h3>
+        ${u.description ? `<p class="card-desc">${esc(u.description)}</p>` : ""}
+        ${userStatusChip(u)}
       </div>
     </div>
-    ${u.description ? `<p class="card-desc">${esc(u.description)}</p>` : ""}
-    <div class="user-services">${userServicesHtml(u)}</div>
-    <div class="card-meta">
-      <div class="card-meta-row">
-        <span class="meta-label">Validité</span>
-        <span class="meta-value">${validity}</span>
+    <div>
+      <p class="section-label">Services autorisés</p>
+      <div class="chip-row">${userServicesHtml(u)}</div>
+    </div>
+    <div class="meta">
+      <div class="meta-row">
+        <span class="meta-key">Validité</span>
+        <span class="meta-val${u.expired ? " meta-val--expired" : ""}">${esc(validity)}</span>
       </div>
-      <div class="card-meta-row">
-        <span class="meta-label">Créé le</span>
-        <span class="meta-value">${formatDate(u.created_at)}</span>
+      <div class="meta-row">
+        <span class="meta-key">Créé le</span>
+        <span class="meta-val">${formatDate(u.created_at)}</span>
       </div>
-      <div class="card-meta-row">
-        <span class="meta-label">Connexion</span>
-        <span class="meta-value">${u.last_login ? formatDateUtc(u.last_login) : "Jamais"}</span>
+      <div class="meta-row">
+        <span class="meta-key">Dernière connexion</span>
+        <span class="meta-val">${u.last_login ? formatDateUtc(u.last_login) : "Jamais"}</span>
       </div>
     </div>
     <div class="card-actions">
-      <button class="btn btn-secondary user-btn-edit" data-id="${u.id}">Modifier</button>
-      <button class="btn btn-danger user-btn-delete" data-id="${u.id}">Supprimer</button>
+      <button class="btn btn-secondary user-btn-edit" data-id="${u.id}" type="button">Modifier</button>
+      <button class="btn btn-secondary btn-more user-btn-more" data-id="${u.id}" type="button"
+              aria-label="Plus d'actions" aria-haspopup="menu" aria-expanded="false">•••</button>
     </div>
   `;
   return card;
@@ -89,7 +94,7 @@ function renderUsers() {
   const empty = document.getElementById("user-empty-state");
 
   Array.from(list.children).forEach((el) => {
-    if (!el.classList.contains("empty-state")) el.remove();
+    if (!el.classList.contains("empty")) el.remove();
   });
 
   if (users.length === 0) {
@@ -97,7 +102,13 @@ function renderUsers() {
     return;
   }
   empty.hidden = true;
-  users.forEach((u) => list.appendChild(renderUserCard(u)));
+
+  const cards = users.map((u) => {
+    const card = renderUserCard(u);
+    list.appendChild(card);
+    return card;
+  });
+  Motion.revealSequence(cards);
 }
 
 async function loadUsers() {
@@ -109,7 +120,7 @@ async function loadUsers() {
   }
 }
 
-// ── Modal ajout/édition ──────────────────────────────────────────────────────
+// ── Feuille ajout/édition ────────────────────────────────────────────────────
 
 const userModal        = document.getElementById("user-modal-backdrop");
 const userForm         = document.getElementById("user-form");
@@ -127,14 +138,15 @@ const userBtnSubmit    = document.getElementById("user-btn-submit");
 
 function renderDevicePicker(selectedIds = []) {
   if (!devices || devices.length === 0) {
-    userDevicePicker.innerHTML = `<p class="field-hint">Aucun équipement disponible. Créez d'abord un équipement.</p>`;
+    userDevicePicker.innerHTML = `<p class="hint">Aucun équipement disponible. Créez d'abord un équipement.</p>`;
     return;
   }
   userDevicePicker.innerHTML = devices
     .map((d) => `
-      <label class="checkbox-label device-picker-item">
+      <label class="check-row">
         <input type="checkbox" value="${d.id}" ${selectedIds.includes(d.id) ? "checked" : ""}>
-        ${esc(d.project_name)} <span class="device-picker-slug">${esc(d.slug)}</span>
+        <span class="picker-name">${esc(d.project_name)}</span>
+        <span class="picker-slug">${esc(d.slug)}</span>
       </label>`)
     .join("");
 }
@@ -174,12 +186,11 @@ function openUserModal(user = null) {
     userFieldEnabled.checked = true;
   }
 
-  userModal.hidden = false;
-  userFieldName.focus();
+  Motion.presentSheet(userModal, { focus: user ? "#user-field-password" : "#user-field-name" });
 }
 
 function closeUserModal() {
-  userModal.hidden = true;
+  Motion.dismissSheet(userModal);
   userFieldName.disabled = false;
 }
 
@@ -202,7 +213,7 @@ userForm.addEventListener("submit", async (e) => {
   let validUntil = null;
   if (!userNoExpiry.checked) {
     if (!userFieldExpiry.value) {
-      userFormError.textContent = "Renseignez une date de validité ou cochez « sans limite de date ».";
+      userFormError.textContent = "Renseignez une date de validité ou activez « sans limite de date ».";
       userFormError.hidden = false;
       return;
     }
@@ -247,12 +258,13 @@ const userConfirmText     = document.getElementById("user-confirm-text");
 
 function openUserConfirm(user) {
   userDeleteTarget = user;
-  userConfirmText.textContent = `Supprimer l'utilisateur « ${user.username} » ? Son accès aux services sera immédiatement révoqué.`;
-  userConfirmBackdrop.hidden = false;
+  userConfirmText.textContent =
+    `« ${user.username} » ne pourra plus se connecter et son accès aux services sera immédiatement révoqué.`;
+  Motion.presentSheet(userConfirmBackdrop, { focus: "#user-confirm-cancel" });
 }
 
 function closeUserConfirm() {
-  userConfirmBackdrop.hidden = true;
+  Motion.dismissSheet(userConfirmBackdrop);
   userDeleteTarget = null;
 }
 
@@ -289,14 +301,17 @@ document.getElementById("user-list").addEventListener("click", (e) => {
 
   if (btn.classList.contains("user-btn-edit")) {
     openUserModal(user);
-  } else if (btn.classList.contains("user-btn-delete")) {
-    openUserConfirm(user);
+  } else if (btn.classList.contains("user-btn-more")) {
+    Motion.showMenu(btn, [
+      { label: "Modifier", glyph: "✎", action: () => openUserModal(user) },
+      { separator: true },
+      { label: "Supprimer", glyph: "🗑", danger: true, action: () => openUserConfirm(user) },
+    ]);
   }
 });
 
 document.addEventListener("keydown", (e) => {
-  if (e.key === "Escape") {
-    if (!userModal.hidden) closeUserModal();
-    if (!userConfirmBackdrop.hidden) closeUserConfirm();
-  }
+  if (e.key !== "Escape") return;
+  if (Motion.isSheetOpen(userModal)) closeUserModal();
+  if (Motion.isSheetOpen(userConfirmBackdrop)) closeUserConfirm();
 });
