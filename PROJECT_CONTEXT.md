@@ -39,6 +39,20 @@ expirés (voir `docs/features/user-management.md`).
 | `backend`    | Python 3.12-slim (custom)     | API FastAPI + fichiers statiques frontend         |
 | `caddy`      | `caddy:2-alpine`              | Reverse proxy dynamique                           |
 | `cloudflared`| `cloudflare/cloudflared`      | Tunnel Cloudflare                                 |
+| `esp32-updater` | `docker:cli`               | Éphémère : mise à jour du serveur (voir `docs/features/server-update.md`) |
+
+### Mise à jour du serveur
+
+Un conteneur ne peut pas se recréer lui-même : exécuter `docker compose up -d
+--build` depuis le backend le fait tuer en plein milieu de sa propre recréation
+(conteneur bloqué en `Created`, 502 Cloudflare). La séquence est donc déportée
+dans un conteneur éphémère `esp32-updater` (`docker:cli`), lancé via le socket
+Docker, qui survit à la recréation du backend.
+
+Le projet y est monté **au même chemin absolu que sur l'hôte**
+(`HOST_PROJECT_PATH`) : Compose s'y exécute, mais les bind-mounts relatifs du
+`docker-compose.yml` sont résolus par le démon de l'hôte. Un chemin différent
+casserait les montages de `caddy` et `backend`.
 
 ### Volumes Docker
 
@@ -227,6 +241,10 @@ Aucune.
 - La configuration du tunnel Cloudflare (ingress rules) est manuelle via le dashboard Cloudflare ; une automatisation via l'API Cloudflare Tunnel serait préférable
 - Le DNS pour `iot.DOMAIN` (portail principal) doit être créé manuellement ; il pourrait être automatisé au premier démarrage
 - Pas de gestion des erreurs de rate-limit Cloudflare API (429)
+- Le conteneur `esp32-updater` est lancé avec accès au socket Docker : quiconque
+  atteint `/api/system/update` pilote le démon de l'hôte. L'endpoint est protégé
+  par la session administrateur, mais c'est une élévation de privilèges par
+  conception, au même titre que le terminal serveur
 - La surveillance utilise HTTP GET ; certains ESP32 pourraient ne pas avoir de route GET sur `/`
 - Pas de pagination sur l'API `/api/devices/` (à ajouter si > 100 équipements)
 
@@ -250,3 +268,5 @@ Aucune.
 | 2026-08-08 | Refonte de l'interface selon les principes de design d'Apple, sans dépendance ni build      |
 | 2026-08-08 | Moteur de ressorts maison (`motion.js`) plutôt qu'une bibliothèque : ~40 lignes utiles, zéro dépendance |
 | 2026-08-08 | Actions secondaires des cartes déplacées dans un menu ancré : chemin courant visible d'abord |
+| 2026-08-09 | Mise à jour déportée dans un conteneur éphémère : un conteneur ne peut pas se recréer lui-même |
+| 2026-08-09 | Projet monté dans l'updater au chemin identique à l'hôte : les bind-mounts sont résolus par le démon hôte |
