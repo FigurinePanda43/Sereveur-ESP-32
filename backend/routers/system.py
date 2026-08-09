@@ -6,6 +6,7 @@ import logging
 import os
 import pty
 import re
+import shlex
 import struct
 import termios
 import uuid
@@ -20,11 +21,24 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/system", tags=["system"])
 
+# Où le dépôt est monté *dans ce conteneur* : sert aux lectures git locales
+# (/update-check), qui n'ont pas besoin de connaître la topologie de l'hôte.
 PROJECT_DIR = os.getenv("HOST_PROJECT_DIR", "/host-project")
-COMPOSE_FILE = os.path.join(PROJECT_DIR, "docker-compose.yml")
+
+# Où le dépôt se trouve *sur l'hôte*. Impossible à déduire depuis l'intérieur du
+# conteneur : seul l'hôte le sait, il arrive donc par l'environnement. Le
+# conteneur de mise à jour doit s'y monter au même chemin — voir _updater_argv().
+HOST_PROJECT_PATH = os.getenv("HOST_PROJECT_PATH", "/root/Sereveur-ESP-32")
+
+# Clé de déploiement de l'hôte, montée en lecture seule pour le git pull.
+HOST_SSH_DIR = os.getenv("HOST_SSH_DIR", "/root/.ssh")
+
+# Image officielle : CLI Docker + plugins (compose, buildx) sur base Alpine.
+UPDATER_IMAGE = os.getenv("UPDATER_IMAGE", "docker:cli")
+UPDATER_CONTAINER = "esp32-updater"
 
 
-async def _stream_command(cmd: list[str], cwd: str):
+async def _stream_command(cmd: list[str], cwd: str | None = None, exit_marker: bool = True):
     proc = await asyncio.create_subprocess_exec(
         *cmd,
         cwd=cwd,
@@ -34,7 +48,18 @@ async def _stream_command(cmd: list[str], cwd: str):
     async for line in proc.stdout:
         yield line.decode(errors="replace")
     await proc.wait()
-    yield f"\n[EXIT {proc.returncode}]\n"
+    if exit_marker:
+        yield f"\n[EXIT {proc.returncode}]\n"
+
+
+async def _capture(cmd: list[str]) -> tuple[int, str]:
+    proc = await asyncio.create_subprocess_exec(
+        *cmd,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.STDOUT,
+    )
+    out, _ = await proc.communicate()
+    return proc.returncode, out.decode(errors="replace").strip()
 
 
 async def _git_output(*args: str) -> tuple[int, str]:
@@ -70,19 +95,97 @@ async def update_check():
     }
 
 
+def _updater_script() -> str:
+    """Commandes exécutées *dans* le conteneur de mise à jour."""
+    path = shlex.quote(HOST_PROJECT_PATH)
+    return (
+        # docker:cli est une image Alpine minimale ; git et ssh n'y sont pas
+        # garantis d'une version à l'autre. On ne les installe que s'ils
+        # manquent réellement, pour ne pas dépendre du réseau sans raison.
+        "if ! command -v git >/dev/null 2>&1 || ! command -v ssh >/dev/null 2>&1; then "
+        "echo '--- installation de git/ssh ---' && apk add --no-cache git openssh-client; "
+        "fi && "
+        # Le dépôt appartient à root sur l'hôte : sans cela git refuse d'opérer
+        # sur un répertoire jugé « douteux ».
+        f"git config --global --add safe.directory {path} && "
+        "echo '--- git pull origin main ---' && "
+        "git pull origin main && "
+        "echo '--- docker compose up -d --build ---' && "
+        "docker compose up -d --build"
+    )
+
+
+def _updater_argv() -> list[str]:
+    return [
+        "docker", "run", "-d", "--rm",
+        "--name", UPDATER_CONTAINER,
+        # Pilote le démon de l'hôte : c'est lui qui recréera les services.
+        "-v", "/var/run/docker.sock:/var/run/docker.sock",
+        # Monté au MÊME chemin que sur l'hôte, volontairement. Compose s'exécute
+        # ici mais les bind-mounts (./frontend, ./caddy/Caddyfile) sont résolus
+        # par le démon *de l'hôte* : un chemin différent produirait des montages
+        # cassés. Cela aligne aussi le nom de projet Compose, déduit du nom du
+        # répertoire, sur celui de la pile déjà en place.
+        "-v", f"{HOST_PROJECT_PATH}:{HOST_PROJECT_PATH}",
+        "-v", f"{HOST_SSH_DIR}:/root/.ssh:ro",
+        "-w", HOST_PROJECT_PATH,
+        UPDATER_IMAGE,
+        "sh", "-c", _updater_script(),
+    ]
+
+
+async def _updater_running() -> bool:
+    rc, out = await _capture([
+        "docker", "ps",
+        "--filter", f"name=^{UPDATER_CONTAINER}$",
+        "--filter", "status=running",
+        "--format", "{{.Names}}",
+    ])
+    return rc == 0 and UPDATER_CONTAINER in out.split()
+
+
 async def _update_generator():
-    yield "=== git pull ===\n"
-    async for line in _stream_command(["git", "pull", "origin", "main"], cwd=PROJECT_DIR):
-        yield line
+    # Un conteneur ne peut pas se recréer lui-même : dès que Compose recrée le
+    # service backend, Docker tue ce processus et la mise à jour s'interrompt à
+    # mi-parcours (conteneur bloqué en « Created », 502 côté Cloudflare). Toute
+    # la séquence est donc déportée dans un conteneur éphémère distinct, qui
+    # survit à la recréation du backend et va jusqu'au bout tout seul.
 
-    yield "\n=== docker compose up -d --build ===\n"
+    if await _updater_running():
+        yield "Une mise à jour est déjà en cours. Patientez avant d'en lancer une autre.\n"
+        return
+
+    yield "=== Préparation ===\n"
+    yield f"Projet sur l'hôte : {HOST_PROJECT_PATH}\n"
+    yield f"Image de mise à jour : {UPDATER_IMAGE}\n\n"
+
+    # L'unicité du nom de conteneur côté démon fait office de verrou : deux
+    # requêtes simultanées ne peuvent pas démarrer deux mises à jour.
+    rc, out = await _capture(_updater_argv())
+    if rc != 0:
+        yield f"[ÉCHEC] Impossible de lancer le conteneur de mise à jour :\n{out}\n"
+        return
+
+    yield f"Conteneur « {UPDATER_CONTAINER} » démarré ({out[:12]}).\n\n"
+
+    saw_output = False
     async for line in _stream_command(
-        ["docker", "compose", "-f", COMPOSE_FILE, "up", "-d", "--build"],
-        cwd=PROJECT_DIR,
+        ["docker", "logs", "-f", UPDATER_CONTAINER], exit_marker=False
     ):
+        saw_output = True
         yield line
 
-    yield "\n=== Mise à jour terminée — le serveur redémarre ===\n"
+    if not saw_output:
+        yield (
+            "[Aucune sortie : le conteneur s'est terminé avant que ses journaux "
+            "ne soient attachés. Relancez la mise à jour pour voir l'erreur.]\n"
+        )
+
+    yield (
+        "\n=== Le backend redémarre — cette connexion va se couper ===\n"
+        "La mise à jour se poursuit dans son propre conteneur. "
+        "Rechargez la page dans quelques instants.\n"
+    )
 
 
 @router.post("/update")
