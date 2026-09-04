@@ -17,7 +17,28 @@ ADMIN_USER = os.getenv("ADMIN_USER", "admin")
 ADMIN_PASSWORD_HASH = os.getenv("ADMIN_PASSWORD_HASH", "")
 _SECRET = os.getenv("APP_SECRET_KEY", "").encode()
 COOKIE_NAME = "esp32_session"
-SESSION_MAX_AGE = int(os.getenv("SESSION_MAX_AGE_SECONDS", "2592000"))
+
+# Durée de vie du jeton de session. Plafond dur à 31 jours : quelle que soit la
+# valeur de SESSION_MAX_AGE_SECONDS dans l'environnement, un jeton ne peut jamais
+# rester valable plus d'un mois (exigence de sécurité). Plancher à 5 minutes pour
+# éviter une configuration qui déconnecterait en boucle.
+_SESSION_MAX_AGE_CAP = 31 * 24 * 3600   # 2 678 400 s ≈ 1 mois
+_SESSION_MAX_AGE_FLOOR = 300
+_requested_max_age = int(os.getenv("SESSION_MAX_AGE_SECONDS", "2592000"))
+SESSION_MAX_AGE = max(_SESSION_MAX_AGE_FLOOR, min(_requested_max_age, _SESSION_MAX_AGE_CAP))
+if _requested_max_age > _SESSION_MAX_AGE_CAP:
+    logger.warning(
+        "SESSION_MAX_AGE_SECONDS=%d dépasse le plafond de %d s (~1 mois) — ramené à ce plafond",
+        _requested_max_age, _SESSION_MAX_AGE_CAP,
+    )
+
+# Levier de révocation globale : les jetons émis avant cet instant (epoch Unix)
+# sont refusés. Laisser vide pour ne rien révoquer. Changer APP_SECRET_KEY
+# invalide également tous les jetons existants.
+try:
+    _MIN_ISSUED_AT = int(os.getenv("AUTH_MIN_ISSUED_AT", "0"))
+except ValueError:
+    _MIN_ISSUED_AT = 0
 
 
 def get_domain():
@@ -26,6 +47,31 @@ def get_domain():
 
 def get_cookie_domain():
     return f".{get_domain()}"
+
+
+def _safe_next(next_url: str, default: str = "/") -> str:
+    """Neutralise les redirections ouvertes après connexion.
+
+    N'autorise qu'un chemin relatif (``/...``) ou une URL absolue dont l'hôte
+    appartient au domaine du portail. Tout le reste (``https://evil.com``,
+    ``//evil.com``, ``https:evil.com``…) est ramené à ``default``.
+    """
+    if not next_url:
+        return default
+    # Chemin relatif : doit commencer par un seul '/', sans '\' ni '//'.
+    if next_url.startswith("/") and not next_url.startswith(("//", "/\\", "/%2f", "/%2F")):
+        return next_url
+    try:
+        from urllib.parse import urlparse
+        parsed = urlparse(next_url)
+    except Exception:
+        return default
+    if parsed.scheme in ("http", "https") and parsed.hostname:
+        domain = get_domain().lower()
+        host = parsed.hostname.lower()
+        if host == domain or host.endswith(f".{domain}"):
+            return next_url
+    return default
 
 
 def verify_password(password: str) -> bool:
@@ -83,9 +129,12 @@ def parse_token(token: str) -> Optional[dict]:
             role, (subject, ts) = "admin", parts
         else:
             return None
-        if int(time.time()) - int(ts) > SESSION_MAX_AGE:
+        ts_int = int(ts)
+        if int(time.time()) - ts_int > SESSION_MAX_AGE:
             return None
-        return {"role": role, "subject": subject, "ts": int(ts)}
+        if _MIN_ISSUED_AT and ts_int < _MIN_ISSUED_AT:
+            return None  # jeton révoqué (émis avant le seuil de révocation)
+        return {"role": role, "subject": subject, "ts": ts_int}
     except Exception:
         return None
 
@@ -146,11 +195,27 @@ def apply_brute_force_rules(db: Session, ip: str, user_agent: str):
     from models import AuthAttempt, BlockedIP, AccessLog
     now = datetime.utcnow()
 
+    # (fenêtre_minutes, échecs_max, blocage_minutes). Seuils resserrés : l'ancien
+    # réglage tolérait 50 essais en 10 min avant tout blocage, ce qui laissait
+    # largement la place à une attaque par dictionnaire. Le premier palier est
+    # réglable via l'environnement pour les déploiements exigeants.
+    try:
+        primary_max = max(1, int(os.getenv("BRUTEFORCE_MAX_ATTEMPTS", "10")))
+    except ValueError:
+        primary_max = 10
+    try:
+        primary_window = max(1, int(os.getenv("BRUTEFORCE_WINDOW_MINUTES", "15")))
+    except ValueError:
+        primary_window = 15
+    try:
+        primary_block = max(1, int(os.getenv("BRUTEFORCE_BLOCK_MINUTES", "15")))
+    except ValueError:
+        primary_block = 15
+
     rules = [
-        # (window_minutes, max_failures, block_minutes)
-        (10, 50, 15),
-        (60, 100, 60),
-        (1440, 200, 1440),
+        (primary_window, primary_max, primary_block),
+        (60, 20, 60),      # 20 échecs / 1 h → blocage 1 h
+        (1440, 50, 1440),  # 50 échecs / 24 h → blocage 24 h
     ]
 
     for window_min, max_fails, block_min in rules:
@@ -192,22 +257,42 @@ def apply_brute_force_rules(db: Session, ip: str, user_agent: str):
 _PUBLIC_PATHS = {"/auth/login", "/auth/logout", "/auth/check", "/device-suspended"}
 _PUBLIC_PREFIXES = ("/css/", "/js/", "/favicon")
 
+# En-têtes de sécurité appliqués à toutes les réponses du portail. /auth/check
+# (contrôle forward_auth des équipements) est exclu pour ne pas polluer la
+# réponse renvoyée à Caddy. Les équipements eux-mêmes sont servis directement
+# par Caddy et ne passent pas par ce middleware : ils ne sont pas affectés.
+_SECURITY_HEADERS = {
+    "X-Frame-Options": "DENY",                       # anti-clickjacking (terminal, mise à jour…)
+    "X-Content-Type-Options": "nosniff",
+    "Referrer-Policy": "no-referrer",
+    "Content-Security-Policy": "frame-ancestors 'none'",
+}
+
+
+def _apply_security_headers(response, path: str):
+    if path == "/auth/check":
+        return response
+    for name, value in _SECURITY_HEADERS.items():
+        response.headers.setdefault(name, value)
+    return response
+
 
 async def auth_middleware(request: Request, call_next):
     path = request.url.path
     if path in _PUBLIC_PATHS or any(path.startswith(p) for p in _PUBLIC_PREFIXES):
-        return await call_next(request)
+        return _apply_security_headers(await call_next(request), path)
 
     token = request.cookies.get(COOKIE_NAME, "")
     if not verify_token(token):
         if path.startswith("/api/"):
-            return JSONResponse(status_code=401, content={"detail": "Non authentifié"})
-        next_url = str(request.url)
-        return RedirectResponse(f"/auth/login?next={next_url}", status_code=302)
+            resp = JSONResponse(status_code=401, content={"detail": "Non authentifié"})
+        else:
+            resp = RedirectResponse(f"/auth/login?next={_safe_next(str(request.url))}", status_code=302)
+        return _apply_security_headers(resp, path)
 
     response = await call_next(request)
 
-    # Renew if > 50% of session time elapsed
+    # Renouvellement glissant : au-delà de 50 % de la durée de vie écoulée.
     age = token_age(token)
     if 0 < age > SESSION_MAX_AGE // 2:
         new_token = make_token()
@@ -222,4 +307,4 @@ async def auth_middleware(request: Request, call_next):
             path="/",
         )
 
-    return response
+    return _apply_security_headers(response, path)
