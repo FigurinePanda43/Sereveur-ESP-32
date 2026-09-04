@@ -10,6 +10,30 @@ SLUG_PATTERN = re.compile(r"^[a-z0-9-]+$")
 
 VALID_DURATIONS = {"15m", "1h", "24h", "48h", "7d"}
 
+
+def _validate_local_ip(v: str) -> str:
+    """Valide une IP d'équipement et rejette les cibles dangereuses.
+
+    Bloque le loopback (127.0.0.0/8, ::1), le lien-local / metadata cloud
+    (169.254.0.0/16 — dont 169.254.169.254), l'adresse non spécifiée (0.0.0.0)
+    et le multicast. Sans ce garde-fou, un équipement passé en accès public
+    pourrait exposer un service interne (API admin de Caddy, métadonnées cloud…)
+    directement sur Internet via le proxy.
+    """
+    try:
+        ip = ipaddress.ip_address(v)
+    except ValueError:
+        raise ValueError(f"Adresse IP invalide : {v}")
+    if ip.is_loopback:
+        raise ValueError("Adresse de loopback interdite pour un équipement")
+    if ip.is_link_local:
+        raise ValueError("Adresse lien-local interdite (risque d'accès aux métadonnées)")
+    if ip.is_unspecified:
+        raise ValueError("Adresse non spécifiée (0.0.0.0) interdite")
+    if ip.is_multicast:
+        raise ValueError("Adresse multicast interdite")
+    return v
+
 # Identifiant d'utilisateur : lettres, chiffres, tiret, underscore, point (pas de ':' pour ne pas
 # casser la sérialisation du token de session).
 USERNAME_PATTERN = re.compile(r"^[a-zA-Z0-9._-]{3,32}$")
@@ -35,11 +59,7 @@ class DeviceCreate(BaseModel):
     @field_validator("local_ip")
     @classmethod
     def validate_ip(cls, v: str) -> str:
-        try:
-            ipaddress.ip_address(v)
-        except ValueError:
-            raise ValueError(f"Adresse IP invalide : {v}")
-        return v
+        return _validate_local_ip(v)
 
 
 class DeviceUpdate(BaseModel):
@@ -54,11 +74,7 @@ class DeviceUpdate(BaseModel):
     def validate_ip(cls, v: Optional[str]) -> Optional[str]:
         if v is None:
             return v
-        try:
-            ipaddress.ip_address(v)
-        except ValueError:
-            raise ValueError(f"Adresse IP invalide : {v}")
-        return v
+        return _validate_local_ip(v)
 
 
 class DeviceResponse(BaseModel):
