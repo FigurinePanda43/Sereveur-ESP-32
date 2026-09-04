@@ -58,14 +58,22 @@ class TestWebSocketBypass:
 # ── Retrait optionnel du cookie vers l'équipement ───────────────────────────
 
 class TestCookieStrip:
-    def test_absent_by_default(self):
-        cf = _build_caddyfile([_device("protected")])
-        assert "header_up -Cookie" not in cf
-
-    def test_present_when_enabled(self, monkeypatch):
-        monkeypatch.setattr("services.caddy.STRIP_COOKIES", True)
+    def test_present_by_default(self):
+        # Activé par défaut : le cookie de session ne doit jamais atteindre
+        # l'équipement en amont (cas d'usage : mini serveur web sans cookie propre).
         cf = _build_caddyfile([_device("protected")])
         assert "header_up -Cookie" in cf
+
+    def test_applies_to_all_modes(self):
+        for mode in ("protected", "public", "public_temporary"):
+            extra = {"public_until": None}
+            cf = _build_caddyfile([_device(mode, **extra)])
+            assert "header_up -Cookie" in cf, f"cookie non retiré en mode {mode}"
+
+    def test_absent_when_disabled(self, monkeypatch):
+        monkeypatch.setattr("services.caddy.STRIP_COOKIES", False)
+        cf = _build_caddyfile([_device("protected")])
+        assert "header_up -Cookie" not in cf
 
 
 # ── Durée de vie du jeton ───────────────────────────────────────────────────

@@ -10,16 +10,20 @@ logger = logging.getLogger(__name__)
 CADDY_ADMIN_URL = os.getenv("CADDY_ADMIN_URL", "http://caddy:2019")
 
 # Le cookie de session est déposé sur `.DOMAIN` : le navigateur l'envoie donc à
-# CHAQUE sous-domaine d'équipement, et Caddy le transmet tel quel à l'équipement
-# en amont. Un équipement compromis (firmware modifié, panneau vérolé) pourrait
-# ainsi capter le cookie d'administration. Ce drapeau retire l'en-tête Cookie
-# des requêtes proxifiées vers les équipements. Il est désactivé par défaut car
-# il retire AUSSI les cookies propres à l'équipement (Proxmox, Home Assistant en
-# ont besoin pour leur propre connexion). À activer si vos équipements protégés
-# n'utilisent pas de cookie sur le domaine du portail. Le contrôle d'accès n'est
-# pas affecté : forward_auth lit le cookie via une sous-requête distincte, avant
-# ce retrait.
-STRIP_COOKIES = os.getenv("PROXY_STRIP_COOKIES", "false").lower() in ("1", "true", "yes")
+# CHAQUE sous-domaine d'équipement, et Caddy le transmettrait tel quel à
+# l'équipement en amont. Un équipement compromis (firmware modifié, panneau
+# vérolé) pourrait alors capter le cookie d'administration. Ce drapeau retire
+# l'en-tête Cookie des requêtes proxifiées vers les équipements.
+#
+# ACTIVÉ PAR DÉFAUT : le cas d'usage visé est un mini serveur web d'équipement
+# sans authentification par cookie propre ; le portail gère toute la sécurité en
+# amont. Le contrôle d'accès n'est pas affecté — forward_auth lit le cookie via
+# une sous-requête distincte, effectuée avant ce retrait.
+#
+# À désactiver (PROXY_STRIP_COOKIES=false) UNIQUEMENT si un équipement protégé a
+# sa propre connexion par cookie sur le domaine du portail (ex. Proxmox, Home
+# Assistant) : sans cela, ce cookie propre ne lui parviendrait plus.
+STRIP_COOKIES = os.getenv("PROXY_STRIP_COOKIES", "true").lower() in ("1", "true", "yes")
 
 
 def _proxy_block(device) -> list:
