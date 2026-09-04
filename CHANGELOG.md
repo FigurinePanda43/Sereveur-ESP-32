@@ -1,5 +1,49 @@
 # CHANGELOG
 
+## [2.3.0] - 2026-09-04
+
+### Audit de sécurité et corrections
+
+Audit complet du portail, du proxy et du flux d'authentification. Chaque faille
+exploitable a été reproduite avec le binaire Caddy réel avant correction, puis la
+correction revérifiée. Rapport détaillé : `docs/security-audit.md`.
+
+**Critique :**
+- Contournement total de l'authentification des services **protégés** via l'en-tête
+  `Upgrade: websocket` (le matcher `@notws` excluait les WebSockets de
+  `forward_auth`). `forward_auth` s'applique désormais à toutes les requêtes.
+
+**Élevé :**
+- Durée de vie du jeton de session **plafonnée en dur à 31 jours** (le défaut reste
+  30 j) ; ajout d'une révocation globale via `AUTH_MIN_ISSUED_AT`.
+- Anti-force brute resserré : premier palier ramené de 50 échecs / 10 min à
+  **10 échecs / 15 min**, réglable via `BRUTEFORCE_MAX_ATTEMPTS` /
+  `BRUTEFORCE_WINDOW_MINUTES` / `BRUTEFORCE_BLOCK_MINUTES`.
+- Fuite du cookie de session vers les équipements en amont : retrait en opt-in via
+  `PROXY_STRIP_COOKIES` (désactivé par défaut car il retire aussi les cookies
+  propres à l'équipement).
+
+**Moyen :**
+- En-têtes de sécurité ajoutés au portail (`X-Frame-Options`, CSP `frame-ancestors`,
+  `X-Content-Type-Options`, `Referrer-Policy`) — anti-clickjacking.
+- Redirection ouverte après connexion (`?next=`) neutralisée (`_safe_next`).
+- Intégrité des scripts CDN (`xterm`) via SRI.
+- `local_ip` : rejet du loopback, du lien-local (métadonnées cloud), de l'adresse
+  non spécifiée et du multicast.
+
+**Fichiers modifiés :** `backend/auth.py`, `backend/services/caddy.py`,
+`backend/schemas.py`, `backend/routers/auth.py`, `frontend/index.html`,
+`.env.example`. **Ajoutés :** `docs/security-audit.md`,
+`backend/tests/test_security.py` (27 tests).
+
+**Impact / migration :** aucune migration de données. Les sessions existantes
+restent valides (sauf si `AUTH_MIN_ISSUED_AT` est renseigné). Si un service
+protégé exposant un WebSocket devient inaccessible sans authentification, c'est
+désormais le comportement attendu. Nouvelles variables d'environnement optionnelles
+documentées dans `.env.example`.
+
+---
+
 ## [2.2.0] - 2026-08-08
 
 ### Refonte de l'interface web selon les principes de design d'Apple

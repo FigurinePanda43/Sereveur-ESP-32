@@ -229,6 +229,28 @@ Aucune.
 - Pas de gestion des erreurs de rate-limit Cloudflare API (429)
 - La surveillance utilise HTTP GET ; certains ESP32 pourraient ne pas avoir de route GET sur `/`
 - Pas de pagination sur l'API `/api/devices/` (à ajouter si > 100 équipements)
+- Le cookie de session (`.DOMAIN`) est transmis aux équipements en amont ; retrait
+  possible via `PROXY_STRIP_COOKIES` mais désactivé par défaut (casse les cookies
+  propres à un équipement). Voir `docs/security-audit.md` (H3)
+- Blocage anti-force brute par IP uniquement : une attaque distribuée le contourne
+- Socket Docker + `/root/.ssh` montés dans le backend = toute RCE backend donne
+  root sur l'hôte (inhérent aux fonctions terminal/mise à jour)
+
+---
+
+## Sécurité
+
+Audit complet : `docs/security-audit.md` (2026-09-04). Points clés :
+
+- **Services protégés** : `forward_auth` s'applique à toutes les requêtes, y
+  compris WebSocket (un contournement via `Upgrade: websocket` a été corrigé).
+- **Jeton de session** : durée plafonnée en dur à 31 jours quelle que soit la
+  config ; révocation globale via `AUTH_MIN_ISSUED_AT` ou rotation d'`APP_SECRET_KEY`.
+- **Force brute** : 10 échecs / 15 min → blocage IP (réglable via `BRUTEFORCE_*`).
+- **Portail** : en-têtes de sécurité (anti-clickjacking) sur toutes les réponses,
+  SRI sur les scripts CDN, redirections `?next=` restreintes au domaine.
+- **Équipements** : `local_ip` interdit loopback / lien-local / non spécifiée /
+  multicast (anti-SSRF sur un équipement public).
 
 ---
 
@@ -250,3 +272,7 @@ Aucune.
 | 2026-08-08 | Refonte de l'interface selon les principes de design d'Apple, sans dépendance ni build      |
 | 2026-08-08 | Moteur de ressorts maison (`motion.js`) plutôt qu'une bibliothèque : ~40 lignes utiles, zéro dépendance |
 | 2026-08-08 | Actions secondaires des cartes déplacées dans un menu ancré : chemin courant visible d'abord |
+| 2026-08-09 | Mise à jour déportée dans un conteneur éphémère : un conteneur ne peut pas se recréer lui-même |
+| 2026-09-04 | Audit de sécurité : correction du contournement WebSocket des services protégés (critique) |
+| 2026-09-04 | Durée du jeton plafonnée en dur à 31 j ; anti-force brute resserré à 10 essais / 15 min |
+| 2026-09-04 | Retrait chirurgical du cookie (regex Caddy) écarté car non déterministe aux tests ; retrait total en opt-in |

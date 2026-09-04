@@ -9,6 +9,7 @@ from database import get_db
 from auth import (
     COOKIE_NAME,
     SESSION_MAX_AGE,
+    _safe_next,
     apply_brute_force_rules,
     get_client_ip,
     get_cookie_domain,
@@ -64,6 +65,9 @@ async def login(
 ):
     ip = get_client_ip(request)
     ua = request.headers.get("user-agent", "")
+
+    # Neutralise une redirection ouverte : ?next=https://evil.com après login.
+    next = _safe_next(next)
 
     if is_ip_blocked(db, ip):
         return HTMLResponse("Trop de tentatives. Réessayez plus tard.", status_code=429)
