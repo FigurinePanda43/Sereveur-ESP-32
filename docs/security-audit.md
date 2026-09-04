@@ -90,18 +90,22 @@ le contrôle du portail — donc, via le terminal, de la machine hôte.
 **Reproduction :** requête vers un service protégé avec `Cookie: esp32_session=…`
 → le service factice en amont reçoit le cookie d'administration intact.
 
-**Correction (opt-in) :** `PROXY_STRIP_COOKIES=true` retire l'en-tête `Cookie` des
-requêtes proxifiées vers les équipements. Le contrôle d'accès n'est pas affecté :
-`forward_auth` lit le cookie via une sous-requête distincte, effectuée avant ce
-retrait (vérifié). **Désactivé par défaut**, car il retire aussi les cookies
-propres à l'équipement : un service protégé qui a sa propre connexion par cookie
-sur le domaine du portail (Proxmox, Home Assistant) la verrait cassée.
+**Correction :** l'en-tête `Cookie` est retiré des requêtes proxifiées vers les
+équipements (`PROXY_STRIP_COOKIES`, **activé par défaut**). Le contrôle d'accès
+n'est pas affecté : `forward_auth` lit le cookie via une sous-requête distincte,
+effectuée avant ce retrait (vérifié). Le retrait s'applique à tous les modes
+(protégé, public, public temporaire), car le cookie fuit dans tous les cas.
 
-Un retrait *chirurgical* (ne retirer que `esp32_session`) a été tenté via le
-remplacement d'en-tête de Caddy mais s'est révélé **non déterministe** aux tests
-(résultats variables selon l'ordre des cookies) ; il n'a donc pas été retenu.
-Recommandation : activer `PROXY_STRIP_COOKIES` si vos équipements protégés
-n'utilisent pas de cookie sur le domaine du portail (cas des ESP32).
+Ce défaut correspond au cas d'usage du projet : un mini serveur web d'équipement
+sans authentification par cookie propre, le portail assurant toute la sécurité en
+amont. À passer à `PROXY_STRIP_COOKIES=false` uniquement si un équipement protégé
+possède sa propre connexion par cookie sur le domaine du portail (Proxmox, Home
+Assistant), sans quoi ce cookie propre ne lui parviendrait plus.
+
+Un retrait *chirurgical* (ne retirer que `esp32_session`, en conservant d'éventuels
+cookies propres) a été tenté via le remplacement d'en-tête de Caddy mais s'est
+révélé **non déterministe** aux tests (résultats variables selon l'ordre des
+cookies) ; il n'a donc pas été retenu au profit du retrait total.
 
 ---
 
@@ -168,4 +172,4 @@ multicast, à la création comme à la modification.
 | Nombre d'essais max pour un mot de passe | Était 50 / 10 min avant blocage → **ramené à 10 / 15 min**, réglable. |
 | Contournement d'un service protégé une fois publié | **Oui, il en existait un** (WebSocket) — corrigé et revérifié. |
 | Durée de vie du jeton ≤ 1 mois | Défaut 30 j, désormais **plafonné en dur à 31 j** ; révocation possible. |
-| Autres failles non vues | Fuite du cookie aux équipements, clickjacking, redirection ouverte, CDN sans SRI, `local_ip` sans garde-fou — toutes traitées. |
+| Autres failles non vues | Fuite du cookie aux équipements (retrait **activé par défaut**), clickjacking, redirection ouverte, CDN sans SRI, `local_ip` sans garde-fou — toutes traitées. |

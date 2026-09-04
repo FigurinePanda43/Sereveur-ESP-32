@@ -19,9 +19,9 @@ correction revérifiée. Rapport détaillé : `docs/security-audit.md`.
 - Anti-force brute resserré : premier palier ramené de 50 échecs / 10 min à
   **10 échecs / 15 min**, réglable via `BRUTEFORCE_MAX_ATTEMPTS` /
   `BRUTEFORCE_WINDOW_MINUTES` / `BRUTEFORCE_BLOCK_MINUTES`.
-- Fuite du cookie de session vers les équipements en amont : retrait en opt-in via
-  `PROXY_STRIP_COOKIES` (désactivé par défaut car il retire aussi les cookies
-  propres à l'équipement).
+- Fuite du cookie de session vers les équipements en amont : retrait via
+  `PROXY_STRIP_COOKIES`, **activé par défaut** (à passer à `false` seulement si un
+  équipement protégé a sa propre connexion par cookie sur le domaine du portail).
 
 **Moyen :**
 - En-têtes de sécurité ajoutés au portail (`X-Frame-Options`, CSP `frame-ancestors`,

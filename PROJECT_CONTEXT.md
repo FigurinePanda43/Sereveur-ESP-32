@@ -229,9 +229,9 @@ Aucune.
 - Pas de gestion des erreurs de rate-limit Cloudflare API (429)
 - La surveillance utilise HTTP GET ; certains ESP32 pourraient ne pas avoir de route GET sur `/`
 - Pas de pagination sur l'API `/api/devices/` (à ajouter si > 100 équipements)
-- Le cookie de session (`.DOMAIN`) est transmis aux équipements en amont ; retrait
-  possible via `PROXY_STRIP_COOKIES` mais désactivé par défaut (casse les cookies
-  propres à un équipement). Voir `docs/security-audit.md` (H3)
+- Le cookie de session (`.DOMAIN`) serait sinon transmis aux équipements en amont ;
+  retrait `PROXY_STRIP_COOKIES` **activé par défaut**. À désactiver seulement pour
+  un équipement à cookie propre (Proxmox, Home Assistant). Voir `docs/security-audit.md` (H3)
 - Blocage anti-force brute par IP uniquement : une attaque distribuée le contourne
 - Socket Docker + `/root/.ssh` montés dans le backend = toute RCE backend donne
   root sur l'hôte (inhérent aux fonctions terminal/mise à jour)
@@ -275,4 +275,4 @@ Audit complet : `docs/security-audit.md` (2026-09-04). Points clés :
 | 2026-08-09 | Mise à jour déportée dans un conteneur éphémère : un conteneur ne peut pas se recréer lui-même |
 | 2026-09-04 | Audit de sécurité : correction du contournement WebSocket des services protégés (critique) |
 | 2026-09-04 | Durée du jeton plafonnée en dur à 31 j ; anti-force brute resserré à 10 essais / 15 min |
-| 2026-09-04 | Retrait chirurgical du cookie (regex Caddy) écarté car non déterministe aux tests ; retrait total en opt-in |
+| 2026-09-04 | Retrait chirurgical du cookie (regex Caddy) écarté car non déterministe ; retrait total activé par défaut (cas d'usage : équipements sans cookie propre) |
