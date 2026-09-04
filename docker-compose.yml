@@ -9,11 +9,20 @@ services:
     environment:
       - DATABASE_URL=sqlite:////data/devices.db
       - CADDY_ADMIN_URL=http://caddy:2019
+      # Chemin du projet sur l'HÔTE. Le conteneur de mise à jour s'y monte au
+      # même chemin : Compose y tourne, mais les bind-mounts relatifs
+      # (./frontend, ./caddy/Caddyfile) sont résolus par le démon de l'hôte.
+      - HOST_PROJECT_PATH=${HOST_PROJECT_PATH:-/root/Sereveur-ESP-32}
+      - HOST_SSH_DIR=${HOST_SSH_DIR:-/root/.ssh}
     volumes:
       - db_data:/data
       - ./frontend:/app/frontend:ro
       - /var/run/docker.sock:/var/run/docker.sock
-      - /root/Sereveur-ESP-32:/host-project
+      - ${HOST_PROJECT_PATH:-/root/Sereveur-ESP-32}:/host-project
+      # Clé de déploiement en lecture seule : sans elle, le git fetch de
+      # /api/system/update-check échoue sur un dépôt privé en SSH et le badge
+      # « mise à jour disponible » ne s'affiche jamais.
+      - ${HOST_SSH_DIR:-/root/.ssh}:/root/.ssh:ro
     depends_on:
       - caddy
     restart: unless-stopped

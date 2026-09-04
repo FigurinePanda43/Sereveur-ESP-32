@@ -44,6 +44,59 @@ documentées dans `.env.example`.
 
 ---
 
+## [2.2.1] - 2026-08-09
+
+### Correctif : « Mise à jour du serveur » rendait l'application injoignable (502)
+
+**Symptôme :** au clic sur « Mise à jour du serveur », l'application devenait
+injoignable (Cloudflare 502 Bad Gateway) et le nouveau conteneur backend restait
+bloqué à l'état `Created`.
+
+**Cause :** `_update_generator` exécutait `docker compose up -d --build` depuis
+l'intérieur du conteneur backend. Quand Compose recréait le service `backend`,
+Docker arrêtait ce conteneur et le processus `docker compose`, enfant d'uvicorn,
+recevait un SIGKILL en pleine recréation. Un conteneur ne peut pas se recréer
+lui-même de façon fiable. S'y ajoutait que l'image backend n'embarque que le
+binaire `docker` (extrait seul de l'archive statique), sans le plugin Compose.
+
+**Fichiers créés :**
+- `docs/features/server-update.md` — Fonctionnement, piège du chemin, clé SSH
+
+**Fichiers modifiés :**
+- `backend/routers/system.py` — Séquence déportée dans un conteneur éphémère
+  `esp32-updater` (`docker:cli`) lancé via le socket Docker, qui survit à la
+  recréation du backend ; streaming de `docker logs -f` vers le client ; verrou
+  anti-double-clic ; remontée explicite des échecs de lancement
+- `docker-compose.yml` — Variables `HOST_PROJECT_PATH` / `HOST_SSH_DIR`
+  transmises au backend, montage `/root/.ssh` en lecture seule, chemin du projet
+  paramétré
+- `backend/Dockerfile` — Ajout d'`openssh-client` pour le `git fetch` de
+  `/api/system/update-check` sur un dépôt privé en SSH (le badge « mise à jour
+  disponible » ne s'affichait jamais)
+- `.env.example` — Documentation de `HOST_PROJECT_PATH` et `HOST_SSH_DIR`
+
+**Impact :** La mise à jour aboutit désormais. Le flux se coupe toujours au
+redémarrage du backend — c'est attendu, le frontend l'affiche déjà — mais
+l'updater termine son travail dans son propre conteneur. Le badge de mise à jour
+s'affiche à nouveau.
+
+**Risque :** Modéré. Le conteneur updater reçoit le socket Docker et la clé de
+déploiement de l'hôte. L'endpoint reste protégé par la session administrateur.
+
+**Instructions de migration :** Le backend déployé exécute encore l'ancien code ;
+cette mise à jour-ci doit donc être faite **manuellement sur l'hôte**, une seule
+fois :
+
+```bash
+cd /root/Sereveur-ESP-32 && git pull origin main && docker compose up -d --build
+```
+
+Si le projet n'est pas dans `/root/Sereveur-ESP-32`, renseigner
+`HOST_PROJECT_PATH` dans `.env` avant de relancer. Les mises à jour suivantes
+passeront par le bouton.
+
+---
+
 ## [2.2.0] - 2026-08-08
 
 ### Refonte de l'interface web selon les principes de design d'Apple
