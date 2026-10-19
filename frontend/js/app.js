@@ -787,6 +787,7 @@ document.addEventListener("keydown", (e) => {
 function showView(name) {
   document.querySelectorAll(".view").forEach(v => { v.hidden = v.id !== `view-${name}`; });
   if (name === "users" && typeof loadUsers === "function") loadUsers();
+  if (name === "security" && typeof loadSecurity === "function") loadSecurity();
 }
 
 const segmented = Motion.installSegmented(

@@ -29,7 +29,9 @@ Utilisable seule ou en complément de Cloudflare Access :
 - Middleware FastAPI de session (cookie signé HMAC, `HttpOnly`, `Secure`, `SameSite=Lax`)
 - Compte administrateur via l'environnement : `ADMIN_USER` + `ADMIN_PASSWORD_HASH` (bcrypt)
 - Login via formulaire `/auth/login`, déconnexion `/auth/logout`
-- Protection anti-bruteforce (journalisation des tentatives, blocage d'IP progressif)
+- Protection anti-bruteforce (journalisation des tentatives, blocage d'IP progressif) :
+  paliers, récidive, listes et filtrage par pays réglables dans l'onglet Sécurité
+  (voir `docs/features/ipban.md`)
 - Variable d'environnement : `APP_SECRET_KEY` (signature des sessions)
 - Le jeton porte un **rôle** (`admin` / `user`) ; seul `admin` accède au portail et aux API
 

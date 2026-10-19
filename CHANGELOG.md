@@ -1,5 +1,47 @@
 # CHANGELOG
 
+## [2.4.0] - 2026-10-19
+
+### Sécurité : intégration IPBan complète
+
+Nouvel onglet **Sécurité** pour se protéger des attaques par force brute et
+contrôler qui atteint le serveur. Documentation : `docs/features/ipban.md`.
+
+- **Activable / désactivable** d'un interrupteur ; levier de secours
+  `IPBAN_DISABLED=true` dans l'environnement.
+- **IP bannies** : liste en direct (motif, origine automatique/manuelle, fin du
+  blocage, récidive), bannissement manuel (1 h → définitif), déblocage, historique.
+- **Règles de blocage paramétrables** : paliers « N échecs en X min → Y min »,
+  bannissement progressif des récidivistes (multiplicateur, plafond), bannissement
+  définitif au N-ième, durée de conservation du journal.
+- **Modes de fonctionnement** : standard, ou **liste blanche uniquement** ;
+  listes blanche et noire acceptant IP et plages CIDR.
+- **Filtrage par pays** (via `CF-IPCountry` de Cloudflare) : autoriser seulement
+  ou bloquer une sélection de pays, Tor et « inconnu » compris.
+- **Périmètre** : portail seul, ou portail et tous les équipements — y compris les
+  publics (Caddy leur ajoute alors un `forward_auth` vers `/ipban/check`).
+- **Compte-rendu des attaques** sur 24 h / 7 j / 30 j : chronologie, adresses et
+  pays les plus actifs, identifiants essayés, motifs de blocage ; **journal**
+  filtrable (requêtes bloquées agrégées, bannissements, échecs, réglages).
+- **Anti-verrouillage** : une modification qui bloquerait l'administrateur est
+  refusée avec son explication ; réseau local exempté par défaut.
+- Le terminal WebSocket est lui aussi soumis au filtre.
+
+**Fichiers ajoutés :** `backend/services/ipban.py`, `backend/routers/security.py`,
+`backend/tests/test_ipban.py` (58 tests), `frontend/js/security.js`,
+`docs/features/ipban.md`.
+**Modifiés :** `backend/auth.py`, `backend/models.py`, `backend/schemas.py`,
+`backend/main.py`, `backend/routers/auth.py`, `backend/routers/system.py`,
+`backend/services/caddy.py`, `frontend/index.html`, `frontend/css/style.css`,
+`frontend/js/app.js`, `.env.example`.
+
+**Impact / migration :** tables `security_settings`, `ip_rules`,
+`security_events` créées au démarrage ; colonnes ajoutées à `blocked_ips` et
+`auth_attempts` par migration automatique. Comportement par défaut identique à
+l'existant (mêmes paliers, premier palier repris de `BRUTEFORCE_*`). Les blocages
+renvoient désormais **403** (page dédiée) au lieu de 429, sur le portail comme
+sur les équipements.
+
 ## [2.3.0] - 2026-09-04
 
 ### Audit de sécurité et corrections

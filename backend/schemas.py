@@ -179,3 +179,92 @@ class UserResponse(BaseModel):
     devices: List[UserDeviceInfo]
 
     model_config = {"from_attributes": True}
+
+
+# ── Sécurité (IPBan) ─────────────────────────────────────────────────────────
+
+_COUNTRY_CODE = re.compile(r"^[A-Z][A-Z0-9]$")
+
+
+class BanRule(BaseModel):
+    window_minutes: int = Field(..., ge=1, le=10080)       # ≤ 7 jours
+    max_failures: int = Field(..., ge=1, le=1000)
+    ban_minutes: int = Field(..., ge=1, le=525600)          # ≤ 1 an
+
+
+class SecuritySettingsUpdate(BaseModel):
+    enabled: Optional[bool] = None
+    mode: Optional[str] = Field(None, pattern="^(standard|whitelist)$")
+    apply_to_services: Optional[bool] = None
+    exempt_private: Optional[bool] = None
+    country_mode: Optional[str] = Field(None, pattern="^(off|allow|block)$")
+    countries: Optional[List[str]] = Field(None, max_length=300)
+    bruteforce_enabled: Optional[bool] = None
+    rules: Optional[List[BanRule]] = Field(None, max_length=10)
+    escalation_factor: Optional[float] = Field(None, ge=1, le=10)
+    max_ban_minutes: Optional[int] = Field(None, ge=1, le=525600)
+    permanent_after: Optional[int] = Field(None, ge=0, le=100)
+    retention_days: Optional[int] = Field(None, ge=1, le=365)
+
+    @field_validator("countries")
+    @classmethod
+    def validate_countries(cls, v: Optional[List[str]]) -> Optional[List[str]]:
+        if v is None:
+            return v
+        codes = []
+        for code in v:
+            code = (code or "").strip().upper()
+            if not _COUNTRY_CODE.match(code):
+                raise ValueError(f"Code pays invalide : {code!r} (ISO 3166-1 alpha-2 attendu)")
+            if code not in codes:
+                codes.append(code)
+        return codes
+
+
+def _validate_ip_or_network(v: str) -> str:
+    try:
+        ipaddress.ip_network(v.strip(), strict=False)
+    except ValueError:
+        raise ValueError(f"Adresse IP ou plage CIDR invalide : {v}")
+    return v.strip()
+
+
+class BanCreate(BaseModel):
+    ip: str
+    duration_minutes: Optional[int] = Field(None, ge=1, le=525600)  # None = définitif
+    reason: str = Field("", max_length=200)
+
+    @field_validator("ip")
+    @classmethod
+    def validate_ip(cls, v: str) -> str:
+        try:
+            ipaddress.ip_address(v.strip())
+        except ValueError:
+            raise ValueError(f"Adresse IP invalide : {v}")
+        return v.strip()
+
+
+class IPRuleCreate(BaseModel):
+    list_type: str = Field(..., pattern="^(allow|deny)$")
+    value: str
+    note: str = Field("", max_length=200)
+
+    @field_validator("value")
+    @classmethod
+    def validate_value(cls, v: str) -> str:
+        return _validate_ip_or_network(v)
+
+
+class IPTestRequest(BaseModel):
+    ip: str
+    country: Optional[str] = Field(None, max_length=2)
+    scope: str = Field("portal", pattern="^(portal|service)$")
+
+    @field_validator("ip")
+    @classmethod
+    def validate_ip(cls, v: str) -> str:
+        try:
+            ipaddress.ip_address(v.strip())
+        except ValueError:
+            raise ValueError(f"Adresse IP invalide : {v}")
+        return v.strip()

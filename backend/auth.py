@@ -4,11 +4,10 @@ import hmac
 import logging
 import os
 import time
-from datetime import datetime, timedelta
 from typing import Optional
 
 from fastapi import Request
-from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
@@ -156,28 +155,37 @@ def token_age(token: str) -> int:
 
 
 def get_client_ip(request: Request) -> str:
-    for header in ("cf-connecting-ip", "x-forwarded-for"):
-        val = request.headers.get(header, "")
-        if val:
-            return val.split(",")[0].strip()
-    return request.client.host if request.client else "unknown"
+    from services import ipban
+    return ipban.client_ip(request)
+
+
+def get_client_country(request: Request) -> Optional[str]:
+    from services import ipban
+    return ipban.client_country(request)
 
 
 def is_ip_blocked(db: Session, ip: str) -> bool:
-    from models import BlockedIP
-    now = datetime.utcnow()
-    block = db.query(BlockedIP).filter(BlockedIP.ip_address == ip).first()
-    return block is not None and block.blocked_until > now
+    """Vrai si l'IP est actuellement bannie et qu'IPBan est actif."""
+    from services import ipban
+    return ipban.is_banned(db, ip)
 
 
-def record_attempt(db: Session, ip: str, username: str, user_agent: str, success: bool, failure_reason: str = None):
+def record_attempt(db: Session, ip: str, username: str, user_agent: str, success: bool,
+                   failure_reason: str = None, country: str = None):
+    from datetime import datetime
     from models import AuthAttempt, AccessLog
+    from services import ipban
+    ip = ipban.normalize_ip(ip)
     attempt = AuthAttempt(
+        # Horodatage à la microseconde, comme le début d'un bannissement : les
+        # échecs survenus dans la même seconde qu'un déblocage sont bien comptés.
+        created_at=datetime.utcnow(),
         ip_address=ip,
         username=username,
         user_agent=user_agent,
         success=success,
         failure_reason=failure_reason,
+        country=country,
     )
     db.add(attempt)
     log = AccessLog(
@@ -190,71 +198,19 @@ def record_attempt(db: Session, ip: str, username: str, user_agent: str, success
     db.commit()
 
 
-def apply_brute_force_rules(db: Session, ip: str, user_agent: str):
-    """Check failure counts and block IP if needed. Returns (is_blocked, blocked_until_or_None)."""
-    from models import AuthAttempt, BlockedIP, AccessLog
-    now = datetime.utcnow()
+def apply_brute_force_rules(db: Session, ip: str, user_agent: str, country: str = None):
+    """Applique les règles IPBan après un échec. Retourne (bloquée, fin_ou_None).
 
-    # (fenêtre_minutes, échecs_max, blocage_minutes). Seuils resserrés : l'ancien
-    # réglage tolérait 50 essais en 10 min avant tout blocage, ce qui laissait
-    # largement la place à une attaque par dictionnaire. Le premier palier est
-    # réglable via l'environnement pour les déploiements exigeants.
-    try:
-        primary_max = max(1, int(os.getenv("BRUTEFORCE_MAX_ATTEMPTS", "10")))
-    except ValueError:
-        primary_max = 10
-    try:
-        primary_window = max(1, int(os.getenv("BRUTEFORCE_WINDOW_MINUTES", "15")))
-    except ValueError:
-        primary_window = 15
-    try:
-        primary_block = max(1, int(os.getenv("BRUTEFORCE_BLOCK_MINUTES", "15")))
-    except ValueError:
-        primary_block = 15
-
-    rules = [
-        (primary_window, primary_max, primary_block),
-        (60, 20, 60),      # 20 échecs / 1 h → blocage 1 h
-        (1440, 50, 1440),  # 50 échecs / 24 h → blocage 24 h
-    ]
-
-    for window_min, max_fails, block_min in rules:
-        since = now - timedelta(minutes=window_min)
-        count = db.query(AuthAttempt).filter(
-            AuthAttempt.ip_address == ip,
-            AuthAttempt.success == False,
-            AuthAttempt.created_at >= since,
-        ).count()
-
-        if count >= max_fails:
-            blocked_until = now + timedelta(minutes=block_min)
-            existing = db.query(BlockedIP).filter(BlockedIP.ip_address == ip).first()
-            if existing:
-                existing.blocked_until = blocked_until
-                existing.reason = f"{count} échecs en {window_min} min"
-                existing.updated_at = now
-            else:
-                block = BlockedIP(
-                    ip_address=ip,
-                    blocked_until=blocked_until,
-                    reason=f"{count} échecs en {window_min} min",
-                )
-                db.add(block)
-            log = AccessLog(
-                event_type="ip_blocked",
-                source_ip=ip,
-                user_agent=user_agent,
-                message=f"Blocage {block_min}min : {count} échecs en {window_min}min",
-            )
-            db.add(log)
-            db.commit()
-            return True, blocked_until
-
-    return False, None
+    Les paliers (fenêtre, échecs max, durée), le bannissement progressif des
+    récidivistes et l'activation se règlent dans l'onglet Sécurité ; les
+    variables ``BRUTEFORCE_*`` ne fixent plus que le premier palier par défaut.
+    """
+    from services import ipban
+    return ipban.register_failure(db, ip, user_agent, country)
 
 
 # Middleware
-_PUBLIC_PATHS = {"/auth/login", "/auth/logout", "/auth/check", "/device-suspended"}
+_PUBLIC_PATHS = {"/auth/login", "/auth/logout", "/auth/check", "/ipban/check", "/device-suspended"}
 _PUBLIC_PREFIXES = ("/css/", "/js/", "/favicon")
 
 # En-têtes de sécurité appliqués à toutes les réponses du portail. /auth/check
@@ -270,15 +226,57 @@ _SECURITY_HEADERS = {
 
 
 def _apply_security_headers(response, path: str):
-    if path == "/auth/check":
+    if path in ("/auth/check", "/ipban/check"):
         return response
     for name, value in _SECURITY_HEADERS.items():
         response.headers.setdefault(name, value)
     return response
 
 
+def _blocked_response(request: Request, decision):
+    """Réponse 403 d'IPBan : JSON pour les API, page autonome sinon (elle peut
+    être servie sur le sous-domaine d'un équipement via forward_auth)."""
+    import html
+    from services import ipban
+    from routers.auth import _state_page
+
+    ip = html.escape(ipban.normalize_ip(get_client_ip(request)))
+    if decision.code == "banned":
+        heading = "Accès temporairement bloqué"
+        if decision.until:
+            body = (f"Trop de tentatives ont été détectées depuis votre adresse IP ({ip}). "
+                    f"Réessayez après le {decision.until.strftime('%d/%m/%Y à %H:%M')} UTC.")
+        else:
+            heading = "Accès bloqué"
+            body = f"Votre adresse IP ({ip}) a été bannie de ce serveur."
+    else:
+        heading = "Accès refusé"
+        country = get_client_country(request)
+        where = f", {html.escape(country)}" if country and country != ipban.UNKNOWN_COUNTRY else ""
+        body = f"Votre adresse IP ({ip}{where}) n'est pas autorisée à accéder à ce serveur."
+
+    if request.url.path.startswith("/api/"):
+        return JSONResponse(status_code=403, content={"detail": heading, "reason": decision.code})
+    page = _state_page(
+        title=heading, chip="Protection IPBan", glyph="⛨", heading=heading,
+        body=body + " Contactez l'administrateur si vous pensez qu'il s'agit d'une erreur.",
+        accent="#ff3b30", accent_dark="#ff453a",
+    )
+    return HTMLResponse(page, status_code=403)
+
+
 async def auth_middleware(request: Request, call_next):
     path = request.url.path
+
+    # IPBan passe avant tout le reste, pages publiques comprises : une IP
+    # bannie ne doit même pas voir le formulaire de connexion. Les contrôles
+    # forward_auth (/auth/check, /ipban/check) y passent aussi, avec l'IP et
+    # l'hôte d'origine transmis par Caddy.
+    from services import ipban
+    decision = ipban.check(request)
+    if decision is not None:
+        return _apply_security_headers(_blocked_response(request, decision), path)
+
     if path in _PUBLIC_PATHS or any(path.startswith(p) for p in _PUBLIC_PREFIXES):
         return _apply_security_headers(await call_next(request), path)
 

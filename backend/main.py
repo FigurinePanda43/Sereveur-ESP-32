@@ -14,9 +14,10 @@ from database import Base, SessionLocal, engine
 from models import Device
 from routers.auth import router as auth_router
 from routers.devices import router as devices_router
+from routers.security import router as security_router
 from routers.system import router as system_router
 from routers.users import router as users_router
-from services import caddy, monitor
+from services import caddy, ipban, monitor
 from services.access_expiry import expiry_loop
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s — %(message)s")
@@ -69,6 +70,13 @@ async def lifespan(app: FastAPI):
             "ALTER TABLE devices ADD COLUMN last_access_mode_change DATETIME NULL",
             "ALTER TABLE devices ADD COLUMN local_protocol TEXT NOT NULL DEFAULT 'http'",
             "ALTER TABLE devices ADD COLUMN status_detail TEXT NULL",
+            # IPBan
+            "ALTER TABLE blocked_ips ADD COLUMN permanent BOOLEAN NOT NULL DEFAULT 0",
+            "ALTER TABLE blocked_ips ADD COLUMN source TEXT NOT NULL DEFAULT 'auto'",
+            "ALTER TABLE blocked_ips ADD COLUMN ban_count INTEGER NOT NULL DEFAULT 1",
+            "ALTER TABLE blocked_ips ADD COLUMN country TEXT NULL",
+            "ALTER TABLE auth_attempts ADD COLUMN country TEXT NULL",
+            "CREATE INDEX IF NOT EXISTS ix_auth_attempts_created_at ON auth_attempts (created_at)",
         ]:
             try:
                 conn.execute(text(sql))
@@ -87,10 +95,11 @@ async def lifespan(app: FastAPI):
 
     monitor_task = asyncio.create_task(monitor.monitor_loop())
     expiry_task = asyncio.create_task(expiry_loop())
+    ipban_task = asyncio.create_task(ipban.maintenance_loop())
 
     yield
 
-    for task in (monitor_task, expiry_task):
+    for task in (monitor_task, expiry_task, ipban_task):
         task.cancel()
         try:
             await task
@@ -106,6 +115,7 @@ app.include_router(auth_router)
 app.include_router(devices_router)
 app.include_router(system_router)
 app.include_router(users_router)
+app.include_router(security_router)
 
 
 @app.get("/api/health")

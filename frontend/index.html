@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="color-scheme" content="light dark">
   <title>Services locaux</title>
-  <link rel="stylesheet" href="/css/style.css?v=20">
+  <link rel="stylesheet" href="/css/style.css?v=21">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css"
         integrity="sha384-LJcOxlx9IMbNXDqJ2axpfEQKkAYbFjJfhXexLfiRJhjDU81mzgkiQq8rkV0j6dVh"
         crossorigin="anonymous">
@@ -42,6 +42,9 @@
         </button>
         <button class="seg-item" role="tab" aria-selected="false" tabindex="-1" data-view="users" type="button">
           <span class="seg-glyph" aria-hidden="true">◍</span>Utilisateurs
+        </button>
+        <button class="seg-item" role="tab" aria-selected="false" tabindex="-1" data-view="security" type="button">
+          <span class="seg-glyph" aria-hidden="true">⛨</span>Sécurité
         </button>
         <button class="seg-item" role="tab" aria-selected="false" tabindex="-1" data-view="tools" type="button">
           <span class="seg-glyph" aria-hidden="true">⚙</span>Outils
@@ -122,6 +125,215 @@
           <p class="empty-text">Créez un compte pour donner un accès limité à certains services, sans partager vos identifiants d'administration.</p>
           <button class="btn btn-primary btn-lg" id="btn-add-user-empty" type="button">Créer un utilisateur</button>
         </div>
+      </div>
+    </section>
+
+    <!-- ── Sécurité (IPBan) ──────────────────────────────────────────────── -->
+    <section class="view" id="view-security" role="tabpanel" aria-label="Sécurité" hidden>
+      <div class="view-head">
+        <div class="view-head-text">
+          <h1 class="t-large-title">Sécurité</h1>
+          <p class="t-footnote">IPBan bloque les attaques par force brute et filtre les accès par adresse IP et par pays.</p>
+        </div>
+        <button class="btn btn-primary btn-lg" id="sec-btn-ban" type="button">
+          <span class="btn-glyph" aria-hidden="true">+</span>
+          <span class="btn-label">Bannir une IP</span>
+        </button>
+      </div>
+
+      <div class="card sec-status" id="sec-status">
+        <label class="switch-row" for="sec-enabled">
+          <span class="switch-text">
+            <span class="sec-status-title">Protection IPBan</span>
+            <span class="hint" id="sec-status-summary">Chargement…</span>
+          </span>
+          <input type="checkbox" class="switch" id="sec-enabled" aria-describedby="sec-status-summary">
+        </label>
+        <div class="notice notice--alert" id="sec-forced-off" hidden>
+          <span aria-hidden="true">⚠</span>
+          <span>Désactivé de force par la variable d'environnement <code>IPBAN_DISABLED</code> : aucune règle n'est appliquée, quel que soit ce réglage.</span>
+        </div>
+        <div class="meta">
+          <div class="meta-row">
+            <span class="meta-key">Votre connexion</span>
+            <span class="meta-val" id="sec-client">—</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="summary summary--4" id="sec-summary">
+        <div class="summary-tile tile-offline">
+          <span class="summary-value" id="sec-stat-bans">—</span>
+          <span class="summary-label">IP bannies</span>
+        </div>
+        <div class="summary-tile tile-slow">
+          <span class="summary-value" id="sec-stat-failed">—</span>
+          <span class="summary-label">Échecs de connexion</span>
+        </div>
+        <div class="summary-tile tile-blocked">
+          <span class="summary-value" id="sec-stat-blocked">—</span>
+          <span class="summary-label">Requêtes bloquées</span>
+        </div>
+        <div class="summary-tile tile-total">
+          <span class="summary-value" id="sec-stat-attackers">—</span>
+          <span class="summary-label">Adresses hostiles</span>
+        </div>
+      </div>
+
+      <!-- Compte-rendu -->
+      <div class="sec-head">
+        <h2 class="t-title">Compte-rendu des attaques</h2>
+        <div class="segmented segmented--inline" id="sec-period" role="tablist" aria-label="Période">
+          <span class="seg-thumb" aria-hidden="true"></span>
+          <button class="seg-item is-active" role="tab" aria-selected="true" data-period="24h" type="button">24 h</button>
+          <button class="seg-item" role="tab" aria-selected="false" tabindex="-1" data-period="7d" type="button">7 jours</button>
+          <button class="seg-item" role="tab" aria-selected="false" tabindex="-1" data-period="30d" type="button">30 jours</button>
+        </div>
+      </div>
+
+      <div class="card sec-report viz-root">
+        <div class="viz-legend" aria-hidden="true">
+          <span class="viz-key"><span class="viz-swatch viz-swatch--1"></span>Requêtes bloquées</span>
+          <span class="viz-key"><span class="viz-swatch viz-swatch--2"></span>Échecs de connexion</span>
+        </div>
+        <div class="viz-chart" id="sec-chart" role="img" aria-label="Chronologie des attaques"></div>
+        <div class="viz-axis" id="sec-chart-axis" aria-hidden="true"></div>
+        <div class="viz-tooltip" id="sec-chart-tip" role="status" hidden></div>
+        <details class="viz-table">
+          <summary>Afficher en tableau</summary>
+          <div class="viz-table-scroll">
+            <table>
+              <thead><tr><th scope="col">Période</th><th scope="col">Requêtes bloquées</th><th scope="col">Échecs</th><th scope="col">Bannissements</th></tr></thead>
+              <tbody id="sec-chart-table"></tbody>
+            </table>
+          </div>
+        </details>
+
+        <div class="sec-tops">
+          <div class="sec-top">
+            <p class="section-label">Adresses les plus actives</p>
+            <ol class="rank-list" id="sec-top-ips"></ol>
+          </div>
+          <div class="sec-top">
+            <p class="section-label">Pays d'origine</p>
+            <ol class="rank-list" id="sec-top-countries"></ol>
+          </div>
+          <div class="sec-top">
+            <p class="section-label">Identifiants essayés</p>
+            <ol class="rank-list" id="sec-top-users"></ol>
+          </div>
+          <div class="sec-top">
+            <p class="section-label">Motifs de blocage</p>
+            <ol class="rank-list" id="sec-top-reasons"></ol>
+          </div>
+        </div>
+      </div>
+
+      <!-- IP bannies -->
+      <div class="sec-head">
+        <h2 class="t-title">IP bannies</h2>
+        <label class="check-row sec-head-check">
+          <input type="checkbox" id="sec-bans-history">
+          <span>Historique</span>
+        </label>
+      </div>
+      <div class="card sec-list-card">
+        <ul class="row-list" id="sec-bans"></ul>
+      </div>
+
+      <!-- Listes d'accès -->
+      <div class="sec-head">
+        <h2 class="t-title">Listes d'accès</h2>
+      </div>
+      <div class="card-grid sec-lists">
+        <div class="card">
+          <div class="card-top">
+            <div class="card-heading">
+              <h3 class="card-name">Liste blanche</h3>
+              <p class="card-desc">Toujours autorisées : jamais bannies ni filtrées par pays. Seules admises en mode « liste blanche uniquement ».</p>
+            </div>
+            <span class="chip chip-active" id="sec-allow-count">0</span>
+          </div>
+          <form class="inline-add" data-list="allow" novalidate>
+            <input type="text" name="value" placeholder="IP ou plage (82.64.1.10, 82.64.0.0/16)" aria-label="IP ou plage à autoriser"
+                   autocapitalize="off" autocorrect="off" spellcheck="false" required>
+            <input type="text" name="note" placeholder="Note (facultative)" aria-label="Note" maxlength="200">
+            <button class="btn btn-tinted" type="submit">Ajouter</button>
+          </form>
+          <ul class="row-list" id="sec-allow"></ul>
+        </div>
+        <div class="card">
+          <div class="card-top">
+            <div class="card-heading">
+              <h3 class="card-name">Liste noire</h3>
+              <p class="card-desc">Toujours bloquées, sans limite de durée. Accepte les plages entières.</p>
+            </div>
+            <span class="chip chip-public-perm" id="sec-deny-count">0</span>
+          </div>
+          <form class="inline-add" data-list="deny" novalidate>
+            <input type="text" name="value" placeholder="IP ou plage (45.155.205.0/24)" aria-label="IP ou plage à bloquer"
+                   autocapitalize="off" autocorrect="off" spellcheck="false" required>
+            <input type="text" name="note" placeholder="Note (facultative)" aria-label="Note" maxlength="200">
+            <button class="btn btn-danger-tinted" type="submit">Ajouter</button>
+          </form>
+          <ul class="row-list" id="sec-deny"></ul>
+        </div>
+      </div>
+
+      <!-- Réglages -->
+      <div class="sec-head">
+        <h2 class="t-title">Réglages</h2>
+      </div>
+      <div class="tool-list">
+        <button class="tool-row" id="sec-open-mode" type="button">
+          <span class="tool-icon tool-icon--shield" aria-hidden="true">⛨</span>
+          <span class="tool-text">
+            <span class="tool-name">Mode de fonctionnement</span>
+            <span class="tool-desc" id="sec-mode-desc">—</span>
+          </span>
+          <span class="tool-chevron" aria-hidden="true">›</span>
+        </button>
+        <button class="tool-row" id="sec-open-country" type="button">
+          <span class="tool-icon tool-icon--globe" aria-hidden="true">◍</span>
+          <span class="tool-text">
+            <span class="tool-name">Filtrage par pays</span>
+            <span class="tool-desc" id="sec-country-desc">—</span>
+          </span>
+          <span class="tool-chevron" aria-hidden="true">›</span>
+        </button>
+        <button class="tool-row" id="sec-open-rules" type="button">
+          <span class="tool-icon tool-icon--rules" aria-hidden="true">⏱</span>
+          <span class="tool-text">
+            <span class="tool-name">Règles de blocage</span>
+            <span class="tool-desc" id="sec-rules-desc">—</span>
+          </span>
+          <span class="tool-chevron" aria-hidden="true">›</span>
+        </button>
+        <button class="tool-row" id="sec-open-test" type="button">
+          <span class="tool-icon tool-icon--scan" aria-hidden="true">?</span>
+          <span class="tool-text">
+            <span class="tool-name">Tester une adresse IP</span>
+            <span class="tool-desc">Vérifier si une adresse serait autorisée, et pourquoi.</span>
+          </span>
+          <span class="tool-chevron" aria-hidden="true">›</span>
+        </button>
+      </div>
+
+      <!-- Journal -->
+      <div class="sec-head">
+        <h2 class="t-title">Journal</h2>
+        <div class="segmented segmented--inline" id="sec-journal-filter" role="tablist" aria-label="Filtrer le journal">
+          <span class="seg-thumb" aria-hidden="true"></span>
+          <button class="seg-item is-active" role="tab" aria-selected="true" data-kind="all" type="button">Tout</button>
+          <button class="seg-item" role="tab" aria-selected="false" tabindex="-1" data-kind="blocked" type="button">Blocages</button>
+          <button class="seg-item" role="tab" aria-selected="false" tabindex="-1" data-kind="ban" type="button">Bannissements</button>
+          <button class="seg-item" role="tab" aria-selected="false" tabindex="-1" data-kind="auth_failed" type="button">Échecs</button>
+          <button class="seg-item" role="tab" aria-selected="false" tabindex="-1" data-kind="admin" type="button">Admin</button>
+        </div>
+      </div>
+      <div class="card sec-list-card">
+        <ul class="row-list" id="sec-journal"></ul>
+        <button class="btn btn-plain btn-block" id="sec-journal-more" type="button" hidden>Charger plus</button>
       </div>
     </section>
 
@@ -447,6 +659,251 @@
     </div>
   </div>
 
+  <!-- ── Feuille : bannir une IP ───────────────────────────────────────────── -->
+  <div class="scrim" id="sec-ban-backdrop" hidden>
+    <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sec-ban-title">
+      <span class="sheet-handle" aria-hidden="true"></span>
+      <div class="sheet-header">
+        <h2 class="sheet-title" id="sec-ban-title">Bannir une adresse IP</h2>
+        <button class="sheet-close" data-close type="button" aria-label="Fermer">✕</button>
+      </div>
+      <form id="sec-ban-form" class="sheet-body" novalidate>
+        <div class="field">
+          <label for="sec-ban-ip">Adresse IP <span class="req" aria-hidden="true">*</span></label>
+          <input type="text" id="sec-ban-ip" placeholder="45.155.205.5" required
+                 autocapitalize="off" autocorrect="off" spellcheck="false">
+          <span class="hint">Pour une plage entière, utilisez plutôt la liste noire.</span>
+        </div>
+        <div class="field">
+          <label>Durée</label>
+          <div class="duration-grid" id="sec-ban-durations">
+            <button class="btn btn-secondary" data-minutes="60" type="button">1 heure</button>
+            <button class="btn btn-secondary is-selected" data-minutes="1440" type="button">24 heures</button>
+            <button class="btn btn-secondary" data-minutes="10080" type="button">7 jours</button>
+            <button class="btn btn-secondary" data-minutes="43200" type="button">30 jours</button>
+            <button class="btn btn-secondary" data-minutes="" type="button">Définitif</button>
+          </div>
+        </div>
+        <div class="field">
+          <label for="sec-ban-reason">Motif</label>
+          <input type="text" id="sec-ban-reason" placeholder="Facultatif — ex. scan de ports" maxlength="200">
+        </div>
+        <div class="form-error" id="sec-ban-error" hidden></div>
+      </form>
+      <div class="sheet-footer">
+        <button type="button" class="btn btn-secondary" data-close>Annuler</button>
+        <button type="submit" class="btn btn-danger" id="sec-ban-submit" form="sec-ban-form">Bannir</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Feuille : mode de fonctionnement ──────────────────────────────────── -->
+  <div class="scrim" id="sec-mode-backdrop" hidden>
+    <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sec-mode-title">
+      <span class="sheet-handle" aria-hidden="true"></span>
+      <div class="sheet-header">
+        <h2 class="sheet-title" id="sec-mode-title">Mode de fonctionnement</h2>
+        <button class="sheet-close" data-close type="button" aria-label="Fermer">✕</button>
+      </div>
+      <div class="sheet-body">
+        <div class="option-group" role="radiogroup" aria-label="Mode">
+          <button class="option-row sec-mode-opt" data-mode="standard" type="button" role="radio">
+            <span class="option-glyph option-glyph--blue" aria-hidden="true">⛨</span>
+            <span class="option-text">
+              <span class="option-name">Standard</span>
+              <span class="option-sub">Tout le monde passe, sauf les IP bannies, la liste noire et les pays filtrés.</span>
+            </span>
+            <span class="option-check" aria-hidden="true">✓</span>
+          </button>
+          <button class="option-row sec-mode-opt" data-mode="whitelist" type="button" role="radio">
+            <span class="option-glyph option-glyph--orange" aria-hidden="true">✓</span>
+            <span class="option-text">
+              <span class="option-name">Liste blanche uniquement</span>
+              <span class="option-sub">Seules les adresses de la liste blanche (et du réseau local, si exempté) entrent.</span>
+            </span>
+            <span class="option-check" aria-hidden="true">✓</span>
+          </button>
+        </div>
+
+        <p class="section-label" style="margin-top:1.25rem;">Périmètre</p>
+        <div class="field">
+          <label class="switch-row" for="sec-apply-services">
+            <span class="switch-text">
+              <span>Protéger aussi les équipements</span>
+              <span class="hint">Applique les règles à tous les sous-domaines, publics compris. Sinon, seul le portail est filtré.</span>
+            </span>
+            <input type="checkbox" class="switch" id="sec-apply-services">
+          </label>
+        </div>
+        <div class="field">
+          <label class="switch-row" for="sec-exempt-private">
+            <span class="switch-text">
+              <span>Toujours autoriser le réseau local</span>
+              <span class="hint">Les adresses privées (192.168.x.x, 10.x.x.x…) ne sont jamais bloquées : évite de s'enfermer dehors.</span>
+            </span>
+            <input type="checkbox" class="switch" id="sec-exempt-private">
+          </label>
+        </div>
+        <div class="form-error" id="sec-mode-error" hidden></div>
+      </div>
+      <div class="sheet-footer">
+        <button type="button" class="btn btn-secondary" data-close>Annuler</button>
+        <button type="button" class="btn btn-primary" id="sec-mode-save">Enregistrer</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Feuille : filtrage par pays ───────────────────────────────────────── -->
+  <div class="scrim" id="sec-country-backdrop" hidden>
+    <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sec-country-title">
+      <span class="sheet-handle" aria-hidden="true"></span>
+      <div class="sheet-header">
+        <h2 class="sheet-title" id="sec-country-title">Filtrage par pays</h2>
+        <button class="sheet-close" data-close type="button" aria-label="Fermer">✕</button>
+      </div>
+      <div class="sheet-body">
+        <div class="option-group" role="radiogroup" aria-label="Filtrage">
+          <button class="option-row sec-country-opt" data-mode="off" type="button" role="radio">
+            <span class="option-glyph option-glyph--gray" aria-hidden="true">○</span>
+            <span class="option-text">
+              <span class="option-name">Désactivé</span>
+              <span class="option-sub">Aucun filtrage géographique.</span>
+            </span>
+            <span class="option-check" aria-hidden="true">✓</span>
+          </button>
+          <button class="option-row sec-country-opt" data-mode="allow" type="button" role="radio">
+            <span class="option-glyph option-glyph--blue" aria-hidden="true">✓</span>
+            <span class="option-text">
+              <span class="option-name">Autoriser seulement ces pays</span>
+              <span class="option-sub">Tout autre pays, ou un pays inconnu, est refusé.</span>
+            </span>
+            <span class="option-check" aria-hidden="true">✓</span>
+          </button>
+          <button class="option-row sec-country-opt" data-mode="block" type="button" role="radio">
+            <span class="option-glyph option-glyph--red" aria-hidden="true">⊘</span>
+            <span class="option-text">
+              <span class="option-name">Bloquer ces pays</span>
+              <span class="option-sub">Les autres pays restent autorisés.</span>
+            </span>
+            <span class="option-check" aria-hidden="true">✓</span>
+          </button>
+        </div>
+
+        <div id="sec-country-picker-wrap">
+          <p class="section-label" style="margin-top:1.25rem;">Pays sélectionnés</p>
+          <div class="chip-row" id="sec-country-chips"></div>
+          <div class="field" style="margin-top:0.75rem;">
+            <input type="text" id="sec-country-search" placeholder="Rechercher un pays ou un code (FR, BE…)" aria-label="Rechercher un pays"
+                   autocomplete="off" spellcheck="false">
+          </div>
+          <div class="picker picker--tall" id="sec-country-list"></div>
+          <span class="hint" style="margin-top:0.5rem;">Pays déterminé par Cloudflare (en-tête <code>CF-IPCountry</code>). « Réseau Tor » et « Inconnu » se filtrent comme des pays.</span>
+        </div>
+        <div class="form-error" id="sec-country-error" hidden></div>
+      </div>
+      <div class="sheet-footer">
+        <button type="button" class="btn btn-secondary" data-close>Annuler</button>
+        <button type="button" class="btn btn-primary" id="sec-country-save">Enregistrer</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Feuille : règles de blocage ───────────────────────────────────────── -->
+  <div class="scrim" id="sec-rules-backdrop" hidden>
+    <div class="sheet sheet--wide" role="dialog" aria-modal="true" aria-labelledby="sec-rules-title">
+      <span class="sheet-handle" aria-hidden="true"></span>
+      <div class="sheet-header">
+        <h2 class="sheet-title" id="sec-rules-title">Règles de blocage</h2>
+        <button class="sheet-close" data-close type="button" aria-label="Fermer">✕</button>
+      </div>
+      <div class="sheet-body">
+        <div class="field">
+          <label class="switch-row" for="sec-bf-enabled">
+            <span class="switch-text">
+              <span>Bannissement automatique (anti-force brute)</span>
+              <span class="hint">Bannit une IP qui accumule les échecs de connexion.</span>
+            </span>
+            <input type="checkbox" class="switch" id="sec-bf-enabled">
+          </label>
+        </div>
+
+        <p class="section-label" style="margin-top:1.25rem;">Paliers</p>
+        <p class="hint" style="margin-bottom:0.625rem;">Une IP est bannie dès qu'un palier est atteint ; si plusieurs le sont, le plus long s'applique.</p>
+        <div class="rule-list" id="sec-rule-list"></div>
+        <button class="btn btn-plain" id="sec-rule-add" type="button">+ Ajouter un palier</button>
+
+        <p class="section-label" style="margin-top:1.25rem;">Récidive</p>
+        <div class="field-row">
+          <div class="field">
+            <label for="sec-escalation">Multiplicateur de durée</label>
+            <input type="number" id="sec-escalation" min="1" max="10" step="0.5">
+            <span class="hint">×2 : chaque nouveau bannissement dure deux fois plus. 1 = pas d'aggravation.</span>
+          </div>
+          <div class="field">
+            <label for="sec-max-ban">Durée maximale (heures)</label>
+            <input type="number" id="sec-max-ban" min="1" max="8760" step="1">
+            <span class="hint">Plafond d'un bannissement aggravé.</span>
+          </div>
+        </div>
+        <div class="field-row" style="margin-top:1rem;">
+          <div class="field">
+            <label for="sec-permanent-after">Bannissement définitif au</label>
+            <input type="number" id="sec-permanent-after" min="0" max="100" step="1">
+            <span class="hint">N-ième bannissement d'une même IP. 0 = jamais.</span>
+          </div>
+          <div class="field">
+            <label for="sec-retention">Conservation du journal (jours)</label>
+            <input type="number" id="sec-retention" min="1" max="365" step="1">
+            <span class="hint">Au-delà, événements et tentatives sont purgés.</span>
+          </div>
+        </div>
+        <div class="form-error" id="sec-rules-error" hidden></div>
+      </div>
+      <div class="sheet-footer">
+        <button type="button" class="btn btn-secondary" data-close>Annuler</button>
+        <button type="button" class="btn btn-primary" id="sec-rules-save">Enregistrer</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Feuille : tester une IP ───────────────────────────────────────────── -->
+  <div class="scrim" id="sec-test-backdrop" hidden>
+    <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sec-test-title">
+      <span class="sheet-handle" aria-hidden="true"></span>
+      <div class="sheet-header">
+        <h2 class="sheet-title" id="sec-test-title">Tester une adresse IP</h2>
+        <button class="sheet-close" data-close type="button" aria-label="Fermer">✕</button>
+      </div>
+      <form id="sec-test-form" class="sheet-body" novalidate>
+        <div class="field-row">
+          <div class="field">
+            <label for="sec-test-ip">Adresse IP</label>
+            <input type="text" id="sec-test-ip" placeholder="45.155.205.5" required
+                   autocapitalize="off" autocorrect="off" spellcheck="false">
+          </div>
+          <div class="field field-narrow">
+            <label for="sec-test-country">Pays</label>
+            <input type="text" id="sec-test-country" placeholder="FR" maxlength="2" autocapitalize="characters" spellcheck="false">
+          </div>
+        </div>
+        <div class="field">
+          <label class="switch-row" for="sec-test-service">
+            <span class="switch-text">
+              <span>Accès à un équipement</span>
+              <span class="hint">Sinon, accès au portail d'administration.</span>
+            </span>
+            <input type="checkbox" class="switch" id="sec-test-service">
+          </label>
+        </div>
+        <div class="test-result" id="sec-test-result" role="status" hidden></div>
+      </form>
+      <div class="sheet-footer">
+        <button type="button" class="btn btn-secondary" data-close>Fermer</button>
+        <button type="submit" class="btn btn-primary" form="sec-test-form">Tester</button>
+      </div>
+    </div>
+  </div>
+
   <div class="toast" id="toast" hidden></div>
 
   <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.js"
@@ -456,7 +913,8 @@
           integrity="sha384-AQLWHRKAgdTxkolJcLOELg4E9rE89CPE2xMy3tIRFn08NcGKPTsELdvKomqji+DL"
           crossorigin="anonymous"></script>
   <script src="/js/motion.js?v=1"></script>
-  <script src="/js/app.js?v=10"></script>
+  <script src="/js/app.js?v=11"></script>
   <script src="/js/users.js?v=3"></script>
+  <script src="/js/security.js?v=1"></script>
 </body>
 </html>

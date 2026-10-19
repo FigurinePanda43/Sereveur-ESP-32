@@ -23,6 +23,7 @@ Internet
       • iot.DOMAIN            → FastAPI backend (port 8000) = portail admin
       • slug.DOMAIN (protégé) → forward_auth /auth/check (backend) puis ESP32 local
       • slug.DOMAIN (public)  → ESP32 local (IP:port) directement
+                                (précédé de forward_auth /ipban/check si IPBan protège les équipements)
       • slug.DOMAIN (suspendu)→ page « service suspendu » (backend)
 ```
 
@@ -31,6 +32,12 @@ session (cookie signé HMAC). Pour les services en mode **protégé**, Caddy dé
 l'autorisation au backend via `forward_auth` → `/auth/check`, qui accepte
 l'administrateur ainsi que les **utilisateurs** autorisés pour ce service et non
 expirés (voir `docs/features/user-management.md`).
+
+**IPBan** (`services/ipban.py`, voir `docs/features/ipban.md`) filtre en amont de
+tout le reste, dans le même middleware : IP bannies (force brute ou manuel),
+listes blanche/noire, mode « liste blanche uniquement », filtrage par pays
+(`CF-IPCountry`). Décision prise sur un instantané en mémoire (TTL 15 s, invalidé
+à chaque écriture) ; requêtes bloquées agrégées en mémoire puis écrites par lots.
 
 ### Conteneurs Docker
 
@@ -84,7 +91,8 @@ Table `devices` (SQLite via SQLAlchemy) :
 
 Tables complémentaires : `users` + `user_device_access` (gestion des utilisateurs à
 accès limité, voir `docs/features/user-management.md`), `auth_attempts`, `blocked_ips`,
-`access_logs` (authentification et journalisation).
+`access_logs` (authentification et journalisation), `security_settings`, `ip_rules`,
+`security_events` (IPBan, voir `docs/features/ipban.md`).
 
 ### Gestion Caddy (dynamique)
 
@@ -114,6 +122,7 @@ Aucune étape de build, aucune dépendance npm.
 | `js/motion.js`       | Moteur d'interaction (ressorts, feuilles, gestes, menus, thème)    |
 | `js/app.js`          | Équipements, outils, navigation, notifications                     |
 | `js/users.js`        | Utilisateurs secondaires                                           |
+| `js/security.js`     | Onglet Sécurité (IPBan) : état, rapport, bannissements, listes, réglages, journal |
 
 Le système visuel suit les principes de design d'Apple :
 
@@ -198,6 +207,8 @@ Tâche asyncio en arrière-plan (`monitor.py`) :
 - [x] Interface en onglets (Équipements / Utilisateurs / Outils)
 - [x] Refonte de l'interface selon les principes de design d'Apple (thème clair/sombre,
       matériaux translucides, animations à ressorts interruptibles, accessibilité)
+- [x] Sécurité IPBan : anti-force brute paramétrable (paliers, récidive), IP bannies,
+      listes blanche/noire, mode liste blanche, filtrage par pays, compte-rendu, journal
 
 ---
 
@@ -251,6 +262,10 @@ Aucune.
   retrait `PROXY_STRIP_COOKIES` **activé par défaut**. À désactiver seulement pour
   un équipement à cookie propre (Proxmox, Home Assistant). Voir `docs/security-audit.md` (H3)
 - Blocage anti-force brute par IP uniquement : une attaque distribuée le contourne
+  (atténué par le filtrage par pays et le mode liste blanche d'IPBan)
+- IPBan se fie à `CF-Connecting-IP` / `CF-IPCountry` : un hôte du LAN qui atteint
+  directement le port 80 publié de Caddy peut les forger (Cloudflare les écrase
+  depuis Internet). Publier Caddy sur 127.0.0.1 fermerait cette porte
 - Socket Docker + `/root/.ssh` montés dans le backend = toute RCE backend donne
   root sur l'hôte (inhérent aux fonctions terminal/mise à jour)
 
@@ -264,7 +279,10 @@ Audit complet : `docs/security-audit.md` (2026-09-04). Points clés :
   compris WebSocket (un contournement via `Upgrade: websocket` a été corrigé).
 - **Jeton de session** : durée plafonnée en dur à 31 jours quelle que soit la
   config ; révocation globale via `AUTH_MIN_ISSUED_AT` ou rotation d'`APP_SECRET_KEY`.
-- **Force brute** : 10 échecs / 15 min → blocage IP (réglable via `BRUTEFORCE_*`).
+- **Force brute** : 10 échecs / 15 min → blocage IP, puis paliers et récidive
+  réglables dans l'onglet Sécurité (IPBan) ; `IPBAN_DISABLED=true` en secours.
+- **Anti-verrouillage** : toute modification IPBan qui bloquerait l'administrateur
+  est refusée (409).
 - **Portail** : en-têtes de sécurité (anti-clickjacking) sur toutes les réponses,
   SRI sur les scripts CDN, redirections `?next=` restreintes au domaine.
 - **Équipements** : `local_ip` interdit loopback / lien-local / non spécifiée /
@@ -295,3 +313,7 @@ Audit complet : `docs/security-audit.md` (2026-09-04). Points clés :
 | 2026-09-04 | Audit de sécurité : correction du contournement WebSocket des services protégés (critique) |
 | 2026-09-04 | Durée du jeton plafonnée en dur à 31 j ; anti-force brute resserré à 10 essais / 15 min |
 | 2026-09-04 | Retrait chirurgical du cookie (regex Caddy) écarté car non déterministe ; retrait total activé par défaut (cas d'usage : équipements sans cookie propre) |
+| 2026-10-19 | IPBan : décision côté backend pour tout le trafic (middleware + forward_auth), pas de matchers Caddy : bans dynamiques sans rechargement de Caddy |
+| 2026-10-19 | IPBan : pays via `CF-IPCountry` (Cloudflare) plutôt qu'une base GeoIP locale à maintenir |
+| 2026-10-19 | IPBan : forward_auth ajouté aux services publics seulement si le périmètre l'exige (zéro surcoût sinon) |
+| 2026-10-19 | IPBan : réseau local exempté et anti-verrouillage par défaut ; en cas d'erreur base, le filtre s'ouvre plutôt que d'enfermer l'administrateur |

@@ -15,6 +15,7 @@
      10. Outils (scan, terminal, mise à jour)
      11. Connexion
      12. Accessibilité et adaptation
+     13. Sécurité (IPBan) — placée avant 12 pour que les adaptations l'emportent
    ═══════════════════════════════════════════════════════════════════════════ */
 
 /* ── 01. Réinitialisation et jetons ─────────────────────────────────────── */
@@ -1546,6 +1547,362 @@ input:disabled { opacity: 0.55; cursor: not-allowed; }
   text-align: center;
 }
 
+/* ── 13. Sécurité (IPBan) ───────────────────────────────────────────────── */
+
+.sec-status { margin-bottom: var(--gap-4); }
+.sec-status-title { font-size: 1.0625rem; font-weight: 640; letter-spacing: -0.014em; }
+.sec-status .meta-val { display: inline-flex; align-items: center; gap: 0.375rem; flex-wrap: wrap; justify-content: flex-end; }
+.sec-status .meta-val .chip { margin-top: 0; }
+
+.summary--4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.tile-blocked { color: var(--blue); }
+.tile-blocked .summary-value { color: var(--blue); }
+
+.sec-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--gap-3);
+  flex-wrap: wrap;
+  margin: var(--gap-6) 0 var(--gap-3);
+}
+
+.segmented--inline { max-width: 100%; }
+.segmented--inline .seg-item { padding: 0.3125rem 0.75rem; font-size: 0.75rem; }
+.sec-head-check { padding: 0; font-size: 0.8125rem; color: var(--label-2); }
+
+code {
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+  font-size: 0.92em;
+}
+
+/* Graphique : deux séries de même unité (événements), empilées sur une seule
+   ligne de base. Teintes catégorielles validées en clair et en sombre — les
+   couleurs de statut (rouge, orange…) restent réservées aux états. */
+.viz-root {
+  position: relative;
+  --series-1: #2a78d6;
+  --series-2: #eb6834;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) .viz-root {
+    --series-1: #3987e5;
+    --series-2: #d95926;
+  }
+}
+
+:root[data-theme="dark"] .viz-root {
+  --series-1: #3987e5;
+  --series-2: #d95926;
+}
+
+.viz-legend { display: flex; flex-wrap: wrap; gap: var(--gap-3); font-size: 0.75rem; color: var(--label-2); }
+.viz-key { display: inline-flex; align-items: center; gap: 0.375rem; }
+
+.viz-swatch {
+  width: 0.625rem;
+  height: 0.625rem;
+  border-radius: 3px;
+  background: var(--label-3);
+  flex-shrink: 0;
+}
+
+.viz-swatch--1 { background: var(--series-1); }
+.viz-swatch--2 { background: var(--series-2); }
+
+.viz-chart {
+  position: relative;
+  height: 9.5rem;
+  padding-top: 1.125rem;
+  border-bottom: 1px solid var(--separator-strong);
+}
+
+/* Repère du maximum : discret, en pointillés, derrière les barres. */
+.viz-chart::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 1.125rem;
+  border-top: 1px dashed var(--separator);
+}
+
+.viz-max {
+  position: absolute;
+  top: 0;
+  left: 0;
+  font-size: 0.6875rem;
+  color: var(--label-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.viz-empty {
+  position: absolute;
+  inset: 1.125rem 0 0;
+  display: grid;
+  place-items: center;
+  font-size: 0.8125rem;
+  color: var(--label-3);
+  pointer-events: none;
+}
+
+.viz-cols { position: relative; display: flex; gap: 2px; height: 100%; }
+
+/* Toute la colonne est la cible de survol, pas seulement la barre. */
+.viz-col {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  padding: 0;
+  border-radius: 4px 4px 0 0;
+  cursor: default;
+}
+
+.viz-col.is-hover,
+.viz-col:focus-visible { background: var(--fill); outline: none; }
+
+.viz-stack {
+  width: 100%;
+  max-width: 24px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 2px;
+}
+
+.viz-seg { width: 100%; min-height: 2px; flex-shrink: 0; }
+.viz-seg:first-child { border-radius: 4px 4px 0 0; }
+.viz-seg--1 { background: var(--series-1); }
+.viz-seg--2 { background: var(--series-2); }
+
+.viz-axis { display: flex; gap: 2px; margin-top: 0.3125rem; }
+
+.viz-axis span {
+  flex: 1 1 0;
+  min-width: 0;
+  font-size: 0.6875rem;
+  color: var(--label-3);
+  white-space: nowrap;
+  overflow: visible;
+  text-align: left;
+}
+
+.viz-tooltip {
+  position: absolute;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 12rem;
+  padding: 0.5rem 0.625rem;
+  border-radius: var(--r-sm);
+  background: var(--card-raised);
+  box-shadow: var(--shadow-md), 0 0 0 1px var(--separator);
+  font-size: 0.75rem;
+  color: var(--label);
+  pointer-events: none;
+}
+
+.viz-tip-row { display: flex; align-items: center; gap: 0.375rem; color: var(--label-2); }
+.viz-tip-row b { margin-left: auto; color: var(--label); font-variant-numeric: tabular-nums; }
+
+.viz-table summary {
+  font-size: 0.75rem;
+  color: var(--blue);
+  cursor: pointer;
+  width: max-content;
+}
+
+.viz-table-scroll { max-height: 14rem; overflow: auto; margin-top: var(--gap-2); }
+.viz-table table { width: 100%; border-collapse: collapse; font-size: 0.75rem; font-variant-numeric: tabular-nums; }
+
+.viz-table th,
+.viz-table td {
+  padding: 0.3125rem 0.5rem;
+  border-bottom: 1px solid var(--separator);
+  text-align: right;
+}
+
+.viz-table th[scope="row"],
+.viz-table thead th:first-child { text-align: left; font-weight: 500; }
+.viz-table thead th { color: var(--label-2); font-weight: 590; }
+
+/* Classements */
+.sec-tops {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(13.5rem, 1fr));
+  gap: var(--gap-4) var(--gap-5);
+  border-top: 1px solid var(--separator);
+  padding-top: var(--gap-4);
+}
+
+.rank-list { list-style: none; display: flex; flex-direction: column; gap: 0.5rem; }
+
+.rank-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: var(--gap-2);
+  row-gap: 0.25rem;
+  font-size: 0.8125rem;
+}
+
+.rank-name {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.rank-name .chip { margin-top: 0; }
+
+.rank-name--action {
+  border: none;
+  background: transparent;
+  padding: 0;
+  font: inherit;
+  color: var(--label);
+  text-align: left;
+  cursor: pointer;
+}
+
+.rank-name--action:hover .t-mono { color: var(--blue); text-decoration: underline; }
+.rank-val { font-variant-numeric: tabular-nums; color: var(--label-2); }
+
+.rank-bar {
+  grid-column: 1 / -1;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--fill);
+  overflow: hidden;
+}
+
+.rank-bar::after {
+  content: "";
+  display: block;
+  height: 100%;
+  width: var(--w, 0%);
+  border-radius: 2px;
+  background: var(--label-3);
+}
+
+.rank-empty { font-size: 0.8125rem; color: var(--label-3); }
+
+/* Listes de lignes (bannissements, listes d'accès, journal) */
+.sec-list-card { gap: 0; padding-block: 0.25rem; }
+.row-list { list-style: none; }
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-3);
+  padding: 0.625rem 0;
+  border-bottom: 1px solid var(--separator);
+  min-width: 0;
+}
+
+.row:last-child { border-bottom: none; }
+.row--muted { opacity: 0.6; }
+.row .chip { margin-top: 0; flex-shrink: 0; }
+.row-glyph { font-size: 1.125rem; flex-shrink: 0; width: 1.5rem; text-align: center; }
+.row-main { flex: 1; min-width: 0; }
+
+.row-title {
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 560;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.row-sub {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--label-2);
+  margin-top: 0.0625rem;
+  overflow-wrap: anywhere;
+}
+
+.row-side { flex-shrink: 0; }
+.row-empty { padding: 1rem 0; font-size: 0.8125rem; color: var(--label-3); text-align: center; }
+
+.btn-sm { padding: 0.3125rem 0.6875rem; font-size: 0.8125rem; flex-shrink: 0; }
+.icon-btn--sm { width: 1.75rem; height: 1.75rem; font-size: 0.75rem; flex-shrink: 0; }
+
+.sec-lists .row-list { border-top: 1px solid var(--separator); }
+
+.inline-add { display: flex; flex-wrap: wrap; gap: var(--gap-2); }
+.inline-add input[name="value"] { flex: 1 1 14rem; }
+.inline-add input[name="note"] { flex: 1 1 9rem; }
+.inline-add .btn { flex: 0 0 auto; }
+
+.tool-icon--shield { background: linear-gradient(160deg, #5e5ce6, #3634a3); }
+.tool-icon--globe  { background: linear-gradient(160deg, #40c8e0, #0a84ff); }
+.tool-icon--rules  { background: linear-gradient(160deg, #ff9f0a, #e08600); }
+
+/* Durée choisie : l'option active se lit sans dépendre de la seule couleur. */
+.duration-grid .btn.is-selected {
+  background: color-mix(in srgb, var(--blue) 16%, transparent);
+  color: var(--blue);
+  box-shadow: inset 0 0 0 1.5px var(--blue);
+}
+
+.picker--tall { max-height: 16rem; margin-top: var(--gap-2); }
+
+.chip-removable {
+  border: none;
+  font-family: inherit;
+  cursor: pointer;
+  margin-top: 0;
+}
+
+.chip-removable:hover { background: color-mix(in srgb, var(--blue) 22%, transparent); }
+
+.rule-list { display: flex; flex-direction: column; gap: var(--gap-2); margin-bottom: var(--gap-2); }
+
+.rule-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding: 0.5rem 0.625rem;
+  border-radius: var(--r-sm);
+  background: var(--fill);
+  font-size: 0.8125rem;
+  color: var(--label-2);
+}
+
+.rule-row input.rule-in { width: 5.25rem; padding: 0.375rem 0.5rem; }
+.rule-row .icon-btn { margin-left: auto; }
+
+.test-result {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.625rem;
+  margin-top: var(--gap-4);
+  padding: 0.75rem 0.875rem;
+  border-radius: var(--r-sm);
+  font-size: 0.875rem;
+  line-height: 1.4;
+}
+
+.test-result .hint { margin-top: 0.25rem; }
+.test-result-glyph { font-size: 1.125rem; line-height: 1.2; }
+.test-result--ok { background: color-mix(in srgb, var(--green) 14%, transparent); }
+.test-result--ok strong { color: var(--green); }
+.test-result--ko { background: color-mix(in srgb, var(--red) 12%, transparent); }
+.test-result--ko strong { color: var(--red); }
+
 /* ── 12. Accessibilité et adaptation ────────────────────────────────────── */
 
 /* Compact : les feuilles arrivent du bas et repartent par le bas. */
@@ -1593,6 +1950,24 @@ input:disabled { opacity: 0.55; cursor: not-allowed; }
     padding-inline: var(--page);
   }
 
+  /* Quatre tuiles : une grille 2 × 2 plutôt qu'un défilement qui tronque. */
+  .summary--4 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    overflow-x: visible;
+    margin-inline: 0;
+    padding-inline: 0;
+  }
+
+  /* Quatre onglets doivent tenir sur un téléphone sans défiler. */
+  #main-nav .seg-glyph { display: none; }
+  #main-nav .seg-item { padding-inline: 0.5rem; }
+
+  .sec-head { margin-top: var(--gap-5); }
+
+  /* Ligne de bannissement : l'adresse sur toute la largeur, état et action dessous. */
+  .row--wrap { flex-wrap: wrap; row-gap: 0.5rem; }
+  .row--wrap .row-main { flex-basis: calc(100% - 2.25rem); }
+  .row--wrap .row-side { margin-left: 2.25rem; margin-right: auto; }
   .summary::-webkit-scrollbar { display: none; }
   .summary-tile { scroll-snap-align: start; }
 
@@ -1620,6 +1995,7 @@ input:disabled { opacity: 0.55; cursor: not-allowed; }
 
 @media (max-width: 420px) {
   .summary { grid-template-columns: repeat(5, minmax(6.25rem, 1fr)); }
+  .summary--4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .summary-value { font-size: 1.5rem; }
 }
 

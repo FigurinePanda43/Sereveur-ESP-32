@@ -11,6 +11,7 @@ from auth import (
     SESSION_MAX_AGE,
     _safe_next,
     apply_brute_force_rules,
+    get_client_country,
     get_client_ip,
     get_cookie_domain,
     is_ip_blocked,
@@ -64,17 +65,20 @@ async def login(
     db: Session = Depends(get_db),
 ):
     ip = get_client_ip(request)
+    country = get_client_country(request)
     ua = request.headers.get("user-agent", "")
 
     # Neutralise une redirection ouverte : ?next=https://evil.com après login.
     next = _safe_next(next)
 
+    # Normalement déjà refusé par le middleware IPBan ; garde-fou si un
+    # bannissement vient d'être posé et que l'instantané n'est pas encore relu.
     if is_ip_blocked(db, ip):
         return HTMLResponse("Trop de tentatives. Réessayez plus tard.", status_code=429)
 
     # 1) Compte administrateur (identifiants issus de l'environnement)
     if verify_password(password) and username == os.getenv("ADMIN_USER", "admin"):
-        record_attempt(db, ip, username, ua, success=True)
+        record_attempt(db, ip, username, ua, success=True, country=country)
         response = RedirectResponse(next or "/", status_code=302)
         _set_session_cookie(response, username, "admin")
         return response
@@ -84,21 +88,21 @@ async def login(
     if user and verify_user_password(password, user.password_hash):
         now = datetime.utcnow()
         if not user.enabled:
-            record_attempt(db, ip, username, ua, success=False, failure_reason="Compte désactivé")
+            record_attempt(db, ip, username, ua, success=False, failure_reason="Compte désactivé", country=country)
             return RedirectResponse(f"/auth/login?error=disabled&next={next}", status_code=302)
         if user.valid_until and user.valid_until <= now:
-            record_attempt(db, ip, username, ua, success=False, failure_reason="Compte expiré")
+            record_attempt(db, ip, username, ua, success=False, failure_reason="Compte expiré", country=country)
             return RedirectResponse(f"/auth/login?error=expired&next={next}", status_code=302)
 
         user.last_login = now
         db.commit()
-        record_attempt(db, ip, username, ua, success=True)
+        record_attempt(db, ip, username, ua, success=True, country=country)
         response = RedirectResponse(next or "/", status_code=302)
         _set_session_cookie(response, user.username, "user")
         return response
 
-    record_attempt(db, ip, username, ua, success=False, failure_reason="Identifiants invalides")
-    apply_brute_force_rules(db, ip, ua)
+    record_attempt(db, ip, username, ua, success=False, failure_reason="Identifiants invalides", country=country)
+    apply_brute_force_rules(db, ip, ua, country)
     return RedirectResponse(f"/auth/login?error=1&next={next}", status_code=302)
 
 
@@ -247,6 +251,15 @@ def _user_can_access(db: Session, subject: str, slug: str) -> bool:
         UserDeviceAccess.device_id == device.id,
     ).first()
     return access is not None
+
+
+@router.get("/ipban/check", include_in_schema=False)
+async def ipban_check():
+    """``forward_auth`` des services publics quand IPBan protège les services.
+
+    Le filtrage lui-même a lieu dans le middleware (qui répond 403 à une IP
+    refusée) : arrivé ici, la requête est autorisée."""
+    return Response(status_code=200)
 
 
 @router.get("/auth/check", include_in_schema=False)

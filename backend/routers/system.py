@@ -16,6 +16,7 @@ from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect
 from fastapi.responses import StreamingResponse
 
 from auth import COOKIE_NAME, verify_token
+from services import ipban
 
 logger = logging.getLogger(__name__)
 
@@ -341,6 +342,10 @@ async def terminal_ws(websocket: WebSocket):
     token = websocket.cookies.get(COOKIE_NAME, "")
     if not verify_token(token):
         await websocket.close(code=4401)
+        return
+    # Même raison : le filtre IPBan du middleware ne voit pas ce WebSocket.
+    if ipban.check(websocket) is not None:
+        await websocket.close(code=4403)
         return
 
     await websocket.accept()

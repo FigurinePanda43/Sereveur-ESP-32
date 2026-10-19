@@ -23,6 +23,9 @@ Aucun port ne doit être ouvert sur la box internet. Aucune configuration manuel
 - Surveillance périodique du statut de chaque équipement (online / slow / offline)
 - Modes d'accès par service : protégé, public temporaire, public permanent, suspendu
 - Gestion des utilisateurs : comptes à accès limité par service et par date de validité
+- Sécurité IPBan : anti-force brute paramétrable, IP bannies, listes blanche/noire,
+  mode « liste blanche uniquement », filtrage par pays, compte-rendu des attaques
+  (voir `docs/features/ipban.md`)
 - Architecture extensible (MQTT, Home Assistant, Grafana, OTA...)
 
 ---
@@ -61,6 +64,7 @@ Copier `.env.example` → `.env` et renseigner les valeurs.
 | `CLOUDFLARE_TUNNEL_ID`    | ID du tunnel Cloudflare                             | `ghi789...`                    |
 | `CLOUDFLARE_TUNNEL_TOKEN` | Token du tunnel pour cloudflared                    | `eyJ...`                       |
 | `SECRET_KEY`              | Clé secrète pour les sessions (générer aléatoirement) | `openssl rand -hex 32`       |
+| `IPBAN_DISABLED`          | Secours : coupe IPBan si l'administrateur s'est bloqué | `true` (vide par défaut)     |
 
 ---
 
@@ -139,19 +143,22 @@ L'équipement est accessible en moins de 30 secondes via `https://slug.DOMAIN`.
 │   │   ├── auth.py          # Connexion + forward_auth (/auth/check)
 │   │   ├── devices.py       # Routes CRUD équipements + modes d'accès
 │   │   ├── users.py         # Routes CRUD utilisateurs
+│   │   ├── security.py      # IPBan : réglages, bannissements, listes, rapport
 │   │   └── system.py        # Scan réseau, terminal, mise à jour
 │   └── services/
 │       ├── cloudflare.py    # API Cloudflare DNS
 │       ├── caddy.py         # API admin Caddy
 │       ├── monitor.py       # Surveillance périodique
+│       ├── ipban.py         # IPBan : décision de filtrage, anti-force brute
 │       └── access_expiry.py # Expiration des accès publics temporaires
 ├── frontend/                # Interface web en onglets (HTML/CSS/JS vanilla)
-│   ├── index.html           # Onglets Équipements / Utilisateurs / Outils
+│   ├── index.html           # Onglets Équipements / Utilisateurs / Sécurité / Outils
 │   ├── login.html
 │   ├── css/style.css
 │   └── js/
 │       ├── app.js           # Équipements, modes, outils, navigation
-│       └── users.js         # Gestion des utilisateurs
+│       ├── users.js         # Gestion des utilisateurs
+│       └── security.js      # Onglet Sécurité (IPBan)
 ├── caddy/
 │   └── Caddyfile            # Config minimale (admin API activée)
 ├── cloudflared/
@@ -189,6 +196,11 @@ L'équipement est accessible en moins de 30 secondes via `https://slug.DOMAIN`.
 | POST    | `/api/users/`               | Crée un utilisateur                  |
 | PUT     | `/api/users/{id}`           | Modifie un utilisateur               |
 | DELETE  | `/api/users/{id}`           | Supprime un utilisateur              |
+| GET/PUT | `/api/security/settings`    | Réglages IPBan                       |
+| GET/POST/DELETE | `/api/security/bans` | IP bannies, bannir, débloquer       |
+| GET/POST/DELETE | `/api/security/lists` | Listes blanche et noire            |
+| GET     | `/api/security/report`      | Compte-rendu des attaques            |
+| GET     | `/api/security/events`      | Journal de sécurité                  |
 | GET     | `/api/health`               | Statut de l'API                      |
 
 Documentation interactive : `https://iot.DOMAIN/docs`
@@ -230,6 +242,10 @@ docker compose run --rm backend pytest tests/ -v
 | Utilisateurs — CRUD               | Création, doublon, identifiant admin réservé      |
 | Contrôle d'accès forward_auth     | Autorisé / refusé / expiré / admin / non authentifié |
 | Cascade suppression               | Suppression d'un service → retrait des accès      |
+| IPBan — décision                  | Listes, réseau local, bannissement, modes, pays, périmètre |
+| IPBan — force brute               | Paliers, récidive, définitif, désactivation, liste blanche |
+| IPBan — anti-verrouillage         | Refus d'une config qui bloquerait l'administrateur |
+| IPBan — rapport et journal        | Totaux, chronologie, classements, agrégation      |
 
 ---
 

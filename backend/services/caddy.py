@@ -47,7 +47,16 @@ def _proxy_block(device) -> list:
     return [f"    reverse_proxy {upstream} {{", *inner, "    }"]
 
 
-def _build_caddyfile(devices: List) -> str:
+# Contrôle IPBan placé devant les services publics. Les services protégés n'en
+# ont pas besoin : leur forward_auth vers /auth/check passe déjà par le filtre.
+_IPBAN_GUARD = [
+    "    forward_auth backend:8000 {",
+    "        uri /ipban/check",
+    "    }",
+]
+
+
+def _build_caddyfile(devices: List, guard_public: bool = False) -> str:
     domain = os.getenv("DOMAIN", "mondomaine.com")
     admin_domain = f"iot.{domain}"
 
@@ -99,6 +108,7 @@ def _build_caddyfile(devices: List) -> str:
         elif mode in ("public_temporary", "public"):
             lines += [
                 f"http://{device_domain} {{",
+                *(_IPBAN_GUARD if guard_public else []),
                 *_proxy_block(device),
                 "}",
                 "",
@@ -108,7 +118,8 @@ def _build_caddyfile(devices: List) -> str:
 
 
 async def sync_caddy(devices: List) -> bool:
-    caddyfile = _build_caddyfile(devices)
+    from services import ipban
+    caddyfile = _build_caddyfile(devices, guard_public=ipban.public_guard())
     try:
         async with httpx.AsyncClient() as client:
             resp = await client.post(
