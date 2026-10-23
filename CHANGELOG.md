@@ -1,5 +1,26 @@
 # CHANGELOG
 
+## [2.4.1] - 2026-10-23
+
+### Mise à jour du serveur : images à jour et historique réécrit
+
+- Le bouton « Mise à jour du serveur » télécharge désormais les nouvelles images
+  **Caddy** et **cloudflared** (`docker compose pull --ignore-buildable`) et
+  reconstruit le backend sur une image Python fraîche (`build --pull`).
+  Auparavant, `up -d --build` réutilisait indéfiniment les images présentes.
+- `git pull origin main` remplacé par `git fetch` + `git reset --hard
+  origin/main` : la mise à jour ne casse plus quand l'historique de GitHub est
+  réécrit. Fichiers non suivis (`.env`, `docker-compose.override.yml`) conservés.
+- Si Caddy est recréé, le backend est redémarré pour repousser les routes des
+  équipements (sinon les sites publiés tombaient).
+- Le badge « mise à jour disponible » compare le contenu, plus l'historique.
+
+**Fichiers modifiés :** `backend/routers/system.py`,
+`docs/features/server-update.md`. **Ajouté :** `backend/tests/test_system.py`.
+
+**Migration :** une seule fois sur le serveur, avant le premier clic :
+`git fetch origin main && git reset --hard origin/main`.
+
 ## [2.4.0] - 2026-10-19
 
 ### Sécurité : intégration IPBan complète

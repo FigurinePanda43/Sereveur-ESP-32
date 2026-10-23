@@ -88,6 +88,14 @@ async def update_check():
     rc_count, count_out = await _git_output("rev-list", "--count", "HEAD..origin/main")
     commits_behind = int(count_out) if rc_count == 0 and count_out.isdigit() else 0
 
+    # On compare le contenu, pas l'historique : après une réécriture de
+    # l'historique distant, tous les commits diffèrent alors que les fichiers
+    # sont identiques — ce n'est pas une mise à jour.
+    _, local_tree = await _git_output("rev-parse", "HEAD^{tree}")
+    _, remote_tree = await _git_output("rev-parse", "origin/main^{tree}")
+    if local_tree and local_tree == remote_tree:
+        commits_behind = 0
+
     return {
         "update_available": commits_behind > 0,
         "commits_behind": commits_behind,
@@ -109,10 +117,34 @@ def _updater_script() -> str:
         # Le dépôt appartient à root sur l'hôte : sans cela git refuse d'opérer
         # sur un répertoire jugé « douteux ».
         f"git config --global --add safe.directory {path} && "
-        "echo '--- git pull origin main ---' && "
-        "git pull origin main && "
-        "echo '--- docker compose up -d --build ---' && "
-        "docker compose up -d --build"
+        # Le serveur ne porte jamais de commits locaux : on s'aligne sur
+        # origin/main au lieu de fusionner. Un `git pull` échoue dès que
+        # l'historique distant a été réécrit (« unrelated histories »), même à
+        # contenu identique. `reset --hard` ne touche pas aux fichiers non
+        # suivis (.env, docker-compose.override.yml) : surtout pas de `git clean`.
+        "echo '--- git fetch origin main ---' && "
+        "git fetch origin main && "
+        "echo '--- alignement sur origin/main ---' && "
+        "git reset --hard origin/main && "
+        # `up --build` réutilise les images déjà présentes : sans pull explicite,
+        # Caddy et cloudflared ne seraient jamais mis à jour. Le pull reste
+        # limité à ce bouton (pas de pull_policy: always), pour qu'un
+        # `docker compose up` hors ligne fonctionne toujours.
+        "echo '--- docker compose pull (caddy, cloudflared) ---' && "
+        "docker compose pull --ignore-buildable && "
+        "echo '--- docker compose build --pull (backend) ---' && "
+        "docker compose build --pull && "
+        'caddy_before="$(docker compose ps -q caddy)" && '
+        "echo '--- docker compose up -d ---' && "
+        "docker compose up -d && "
+        # Les routes des équipements ne vivent que dans la config chargée par le
+        # backend (POST /load au démarrage). Un Caddy recréé sans que le backend
+        # redémarre ne servirait plus que la config minimale : sites publiés hors
+        # ligne. On relance donc le backend, qui attend Caddy puis repousse tout.
+        'if [ "$caddy_before" != "$(docker compose ps -q caddy)" ]; then '
+        "echo '--- Caddy recréé : redémarrage du backend pour recharger les routes ---' && "
+        "docker compose restart backend; "
+        "fi"
     )
 
 

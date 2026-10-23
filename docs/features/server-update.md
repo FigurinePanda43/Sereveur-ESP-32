@@ -21,12 +21,35 @@ qu'il modifie, il survit à la recréation du backend et va jusqu'au bout seul.
 ```
 backend  ──(docker run -d)──►  esp32-updater  ──(socket)──►  démon Docker hôte
    │                                 │                              │
-   │  streame docker logs -f         │  git pull                    │  recrée
-   │                                 │  docker compose up -d --build│  backend,
-   ▼                                 ▼                              ▼  caddy…
+   │  streame docker logs -f         │  git fetch + reset --hard    │  recrée
+   │                                 │  compose pull / build --pull │  backend,
+   │                                 │  compose up -d               │  caddy,
+   ▼                                 ▼                              ▼  cloudflared
  client                         va au bout                    backend neuf
    (le flux se coupe quand le backend redémarre — c'est attendu)
 ```
+
+## Étapes exécutées
+
+| Étape | Pourquoi |
+|---|---|
+| `git fetch origin main` + `git reset --hard origin/main` | Le serveur ne porte jamais de commits locaux : on s'aligne au lieu de fusionner. Un `git pull` échoue dès que l'historique de GitHub a été réécrit (« refusing to merge unrelated histories »), même à contenu identique. |
+| `docker compose pull --ignore-buildable` | `up --build` réutilise les images déjà présentes : sans ce pull, `caddy:2-alpine` et `cloudflare/cloudflared:latest` ne seraient jamais mis à jour. |
+| `docker compose build --pull` | Reconstruit le backend sur une image `python:3.12-slim` fraîche (correctifs de sécurité de la base). |
+| `docker compose up -d` | Recrée uniquement les services dont l'image ou la configuration a changé. |
+| `docker compose restart backend` si Caddy a été recréé | Les routes des équipements n'existent que dans la configuration que le backend pousse à Caddy au démarrage (`POST /load`). Un Caddy neuf sans backend redémarré ne servirait plus que la config minimale : sites publiés hors ligne. |
+
+`git reset --hard` ne touche **pas** aux fichiers non suivis : `.env` et un
+éventuel `docker-compose.override.yml` local sont conservés. Aucun `git clean`
+n'est exécuté. En revanche, toute modification locale d'un fichier **suivi** est
+écrasée : c'est voulu, la copie du serveur doit refléter GitHub.
+
+Le pull des images est limité à ce bouton (pas de `pull_policy: always` dans
+`docker-compose.yml`) : un `docker compose up` hors ligne, par exemple via
+`scripts/start.sh`, continue de fonctionner avec les images déjà présentes.
+
+Le badge « mise à jour disponible » compare le **contenu** (arbre git) et non
+l'historique : un historique réécrit à contenu identique n'est pas signalé.
 
 ## Le piège du chemin
 
@@ -58,7 +81,7 @@ lecture seule** dans deux conteneurs :
 | Conteneur       | Usage                                                       |
 |-----------------|-------------------------------------------------------------|
 | `backend`       | `git fetch` de `/api/system/update-check` (badge de mise à jour) |
-| `esp32-updater` | `git pull origin main`                                       |
+| `esp32-updater` | `git fetch origin main` puis alignement                      |
 
 L'image backend embarque `openssh-client` à cette fin. Le `known_hosts` de
 l'hôte est repris tel quel : la vérification de la clé d'hôte GitHub reste
@@ -86,16 +109,18 @@ déroulement normal ; l'updater, lui, termine son travail.
 
 ## Première mise à jour après ce correctif
 
-Le backend actuellement déployé exécute encore l'**ancien** code. Il faut donc
-faire cette mise à jour-ci **manuellement sur l'hôte**, une seule fois :
+Le backend actuellement déployé exécute encore l'**ancien** script
+(`git pull`), qui échoue si l'historique de GitHub a été réécrit. Il faut donc
+aligner le serveur **manuellement sur l'hôte**, une seule fois :
 
 ```bash
 cd /root/Sereveur-ESP-32
-git pull origin main
-docker compose up -d --build
+git fetch origin main
+git reset --hard origin/main
 ```
 
-Les suivantes passeront par le bouton.
+Puis cliquer sur « Mise à jour du serveur » : le bouton exécute alors le
+nouveau script. Les mises à jour suivantes passent toutes par le bouton.
 
 ## Variables d'environnement
 

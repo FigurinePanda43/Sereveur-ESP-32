@@ -317,3 +317,5 @@ Audit complet : `docs/security-audit.md` (2026-09-04). Points clés :
 | 2026-10-19 | IPBan : pays via `CF-IPCountry` (Cloudflare) plutôt qu'une base GeoIP locale à maintenir |
 | 2026-10-19 | IPBan : forward_auth ajouté aux services publics seulement si le périmètre l'exige (zéro surcoût sinon) |
 | 2026-10-19 | IPBan : réseau local exempté et anti-verrouillage par défaut ; en cas d'erreur base, le filtre s'ouvre plutôt que d'enfermer l'administrateur |
+| 2026-10-23 | Mise à jour : `fetch` + `reset --hard origin/main` au lieu de `git pull` (le serveur ne porte aucun commit local ; robuste à un historique réécrit) |
+| 2026-10-23 | Mise à jour : pull explicite des images (Caddy, cloudflared) dans le bouton plutôt que `pull_policy: always`, pour garder un `compose up` hors ligne fonctionnel ; backend redémarré si Caddy est recréé |
